@@ -1,0 +1,94 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║              .gitignore — Edukids Screenshot                    ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+# ── Node ───────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/cache
+.pnp.*
+
+# ── Vite / frontend build ──────────────────────────────────────────
+dist/
+dist-ssr/
+*.local
+
+# ── Tauri build artifacts ──────────────────────────────────────────
+app-tauri/src-tauri/target/
+app-tauri/node_modules/
+app-tauri/dist/
+app-tauri/src-tauri/target/release/
+app-tauri/src-tauri/target/debug/
+
+# ── Electron (legacy) build artifacts ─────────────────────────────
+dist-electron/
+release/
+out/
+build/cache/
+
+# ── Rust ──────────────────────────────────────────────────────────
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# ── Environment / secrets ──────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# ── macOS ──────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+*.dmg
+*.pkg
+Icon$
+
+# ── Windows ────────────────────────────────────────────────────────
+Thumbs.db
+Desktop.ini
+*.exe
+*.msi
+*.dll
+
+# ── IDE / editors ──────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/*.code-snippets
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+
+# ── AI agent / tooling ─────────────────────────────────────────────
+.agent/
+.cursor/
+.superdesign/
+.windsurfrules
+CLAUDE.md
+.gemini/
+
+# ── Logs ──────────────────────────────────────────────────────────
+logs/
+*.log
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ── Misc ──────────────────────────────────────────────────────────
+.cache/
+.temp/
+*.tmp
+*.bak
+*.orig
+coverage/
+.nyc_output/
