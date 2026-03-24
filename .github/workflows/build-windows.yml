@@ -24,8 +24,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'yarn'
-          cache-dependency-path: app-tauri/yarn.lock
+          cache: 'npm'
+          cache-dependency-path: app-tauri/package-lock.json
 
       - name: Set up Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -39,11 +39,11 @@ jobs:
 
       # ── Dependencies ────────────────────────────────────────────────────────
       - name: Install Node dependencies
-        run: yarn install --frozen-lockfile
+        run: npm install
 
       # ── Build ───────────────────────────────────────────────────────────────
       - name: Build Tauri app (Windows)
-        run: yarn build
+        run: npm run build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ''   # leave empty for unsigned dev builds
 
