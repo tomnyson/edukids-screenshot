@@ -2,13 +2,16 @@ import { useState } from 'react';
 import {
   Camera, Crop, Save, Copy, Square, ArrowUpRight,
   PenTool, Type, Undo, Redo, Trash2, MousePointer2,
-  Minus, Plus, ImagePlus,
+  Minus, Plus, ImagePlus, Maximize2, Video,
 } from 'lucide-react';
 import type { BackgroundOption } from './CanvasEditor';
+import { ASPECT_RATIOS, type AspectRatio } from './CanvasEditor';
 
 interface ToolbarProps {
   onCaptureFull:    () => void;
   onCaptureRegion:  () => void;
+  onRecordRegion:   () => void;
+  onRecordFull:     () => void;
   onSave:           () => void;
   onCopy:           () => void;
   onToolSelect:     (tool: string) => void;
@@ -22,6 +25,7 @@ interface ToolbarProps {
   onSizeChange:     (s: number) => void;
   background:       BackgroundOption;
   onBgChange:       (bg: BackgroundOption) => void;
+  onAspectRatio:    (ratio: [number, number] | null) => void;
 }
 
 const ToolBtn = ({ icon: Icon, label, onClick, disabled = false, primary = false, active = false }: any) => (
@@ -153,11 +157,104 @@ function BackgroundPicker({ background, onBgChange }: { background: BackgroundOp
   );
 }
 
+function AspectRatioPicker({ onAspectRatio }: { onAspectRatio: (ratio: [number, number] | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<string>('Gốc');
+
+  return (
+    <div className="relative">
+      <button
+        title="Resize theo tỉ lệ"
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors cursor-pointer ${
+          open ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
+        }`}
+      >
+        <Maximize2 size={14} />
+        <span className="select-none">{selected}</span>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[120px] py-1 overflow-hidden">
+          {ASPECT_RATIOS.map((ar) => (
+            <button
+              key={ar.label}
+              onClick={() => {
+                setSelected(ar.label);
+                onAspectRatio(ar.value);
+                setOpen(false);
+              }}
+              className={`w-full px-3 py-1.5 text-left text-xs transition-colors hover:bg-gray-700 cursor-pointer flex items-center gap-2 ${
+                selected === ar.label ? 'text-blue-400 bg-gray-700/50' : 'text-gray-300'
+              }`}
+            >
+              {ar.value && (
+                <span
+                  className="inline-block border border-current rounded-sm flex-shrink-0"
+                  style={{
+                    width: ar.value[0] > ar.value[1] ? 18 : Math.round(18 * ar.value[0] / ar.value[1]),
+                    height: ar.value[1] > ar.value[0] ? 18 : Math.round(18 * ar.value[1] / ar.value[0]),
+                  }}
+                />
+              )}
+              {!ar.value && (
+                <span className="inline-block w-4 h-3 border border-current rounded-sm flex-shrink-0" />
+              )}
+              {ar.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecordDropdown({ onRecordRegion, onRecordFull }: { onRecordRegion: () => void; onRecordFull: () => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        title="Quay màn hình"
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1 p-2 rounded-md transition-colors cursor-pointer ${
+          open ? 'bg-red-600 text-white' : 'hover:bg-gray-800 text-gray-300'
+        }`}
+      >
+        <Video size={18} />
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" className="opacity-60">
+          <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[160px] py-1 overflow-hidden">
+          <button
+            onClick={() => { onRecordRegion(); setOpen(false); }}
+            className="w-full px-3 py-2 text-left text-xs text-gray-300 hover:bg-gray-700 cursor-pointer flex items-center gap-2 transition-colors"
+          >
+            <Crop size={14} />
+            Quay vùng
+            <span className="ml-auto text-gray-500">⌘⇧4</span>
+          </button>
+          <button
+            onClick={() => { onRecordFull(); setOpen(false); }}
+            className="w-full px-3 py-2 text-left text-xs text-gray-300 hover:bg-gray-700 cursor-pointer flex items-center gap-2 transition-colors"
+          >
+            <Camera size={14} />
+            Quay toàn màn hình
+            <span className="ml-auto text-gray-500">⌘⇧5</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Toolbar({
-  onCaptureFull, onCaptureRegion, onSave, onCopy,
+  onCaptureFull, onCaptureRegion, onRecordRegion, onRecordFull,
+  onSave, onCopy,
   onToolSelect, onUndo, onRedo, onClear, hasImage,
   drawColor, drawSize, onColorChange, onSizeChange,
-  background, onBgChange,
+  background, onBgChange, onAspectRatio,
 }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState<string>('select');
 
@@ -172,6 +269,8 @@ export default function Toolbar({
         {/* Capture buttons */}
         <ToolBtn icon={Crop}   label="Chụp vùng (Area)"          onClick={onCaptureRegion} primary />
         <ToolBtn icon={Camera} label="Chụp Toàn màn hình (Full)" onClick={onCaptureFull} />
+        <Sep />
+        <RecordDropdown onRecordRegion={onRecordRegion} onRecordFull={onRecordFull} />
 
         {hasImage && (
           <>
@@ -219,6 +318,11 @@ export default function Toolbar({
             {/* Background picker */}
             <span className="text-gray-500 text-xs mr-1 select-none">Nền:</span>
             <BackgroundPicker background={background} onBgChange={onBgChange} />
+
+            <Sep />
+
+            {/* Aspect ratio picker */}
+            <AspectRatioPicker onAspectRatio={onAspectRatio} />
 
             <Sep />
 

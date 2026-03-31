@@ -7,17 +7,29 @@ use std::sync::Mutex;
 pub struct OverlayCaptureState {
     pub data_url: Option<String>,
     pub display_id: Option<u32>,
+    /// When "record-region" mode, we store the overlay purpose so the frontend
+    /// can differentiate between screenshot region and record region flows.
+    pub overlay_mode: OverlayMode,
+}
+
+#[derive(Clone, Default, PartialEq)]
+pub enum OverlayMode {
+    #[default]
+    Screenshot,
+    Record,
 }
 
 pub struct OverlayState(pub Mutex<OverlayCaptureState>);
 
 mod commands;
+mod recording;
 mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState(Mutex::new(OverlayCaptureState::default())))
+        .manage(recording::RecordingState::default())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -64,6 +76,28 @@ pub fn run() {
                 }
             })?;
 
+            // ⌘⇧4 → toggle record region
+            let h4 = handle.clone();
+            handle.global_shortcut().on_shortcut("CommandOrControl+Shift+4", move |_app, _sc, event| {
+                if event.state == ShortcutState::Pressed {
+                    use tauri::Manager;
+                    if let Some(win) = h4.get_webview_window("main") {
+                        win.emit("trigger-record-region", ()).ok();
+                    }
+                }
+            })?;
+
+            // ⌘⇧5 → toggle record full
+            let h5 = handle.clone();
+            handle.global_shortcut().on_shortcut("CommandOrControl+Shift+5", move |_app, _sc, event| {
+                if event.state == ShortcutState::Pressed {
+                    use tauri::Manager;
+                    if let Some(win) = h5.get_webview_window("main") {
+                        win.emit("trigger-record-full", ()).ok();
+                    }
+                }
+            })?;
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -91,6 +125,18 @@ pub fn run() {
             commands::crop_overlay_selection,
             commands::get_overlay_image,
             commands::close_overlay,
+            commands::get_overlay_mode,
+            // Recording commands
+            recording::check_ffmpeg_installed,
+            recording::get_ffmpeg_debug_info,
+            recording::install_ffmpeg,
+            recording::start_recording_full,
+            recording::start_recording_region,
+            recording::stop_recording,
+            recording::get_recording_elapsed,
+            recording::is_recording,
+            recording::save_recording,
+            recording::discard_recording,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

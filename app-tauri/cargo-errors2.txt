@@ -1,0 +1,21 @@
+   Compiling screenshot-tool v1.0.0 (/Applications/work/screenshot-tool/app-tauri/src-tauri)
+error: failed to run custom build command for `screenshot-tool v1.0.0 (/Applications/work/screenshot-tool/app-tauri/src-tauri)`
+
+Caused by:
+  process didn't exit successfully: `/Applications/work/screenshot-tool/app-tauri/src-tauri/target/debug/build/screenshot-tool-3d0e25ab50352b03/build-script-build` (exit status: 1)
+  --- stdout
+  cargo:rustc-link-lib=framework=CoreGraphics
+  cargo:rustc-link-lib=framework=CoreFoundation
+  cargo:rerun-if-env-changed=TAURI_CONFIG
+  cargo:rustc-check-cfg=cfg(desktop)
+  cargo:rustc-cfg=desktop
+  cargo:rustc-check-cfg=cfg(mobile)
+  cargo:rerun-if-changed=/Applications/work/screenshot-tool/app-tauri/src-tauri/tauri.conf.json
+  cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_APP_NAME=tauri
+  cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_PREFIX=com_screenshot_1tool
+  cargo:rustc-check-cfg=cfg(dev)
+  cargo:rustc-cfg=dev
+
+        The `tauri` dependency features on the `Cargo.toml` file does not match the allowlist defined under `tauri.conf.json`.
+        Please run `tauri dev` or `tauri build` or add the `protocol-asset` feature.
+      

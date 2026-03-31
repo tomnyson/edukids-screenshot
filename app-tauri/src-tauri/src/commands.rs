@@ -9,7 +9,7 @@ use tauri::{
     WebviewWindow, WebviewWindowBuilder,
 };
 
-use crate::OverlayState;
+use crate::{OverlayMode, OverlayState};
 
 // ── macOS Screen Recording permission (CoreGraphics FFI) ─────────────────────
 #[cfg(target_os = "macos")]
@@ -300,13 +300,19 @@ pub fn open_screen_recording_settings() -> Result<(), String> {
 // ── Overlay (region selector window) ─────────────────────────────────────────
 
 #[tauri::command]
-pub fn start_region_capture(app: AppHandle, data_url: String) -> Result<(), String> {
+pub fn start_region_capture(app: AppHandle, data_url: String, mode: Option<String>) -> Result<(), String> {
     let (_, screen) = screen_under_cursor()?;
+
+    let overlay_mode = match mode.as_deref() {
+        Some("record") => OverlayMode::Record,
+        _ => OverlayMode::Screenshot,
+    };
 
     if let Some(state) = app.try_state::<OverlayState>() {
         let mut capture = state.0.lock().map_err(|e| e.to_string())?;
         capture.data_url = Some(data_url);
         capture.display_id = Some(screen.display_info.id);
+        capture.overlay_mode = overlay_mode;
     }
 
     // Reuse existing overlay window for instant speed & preventing race conditions
@@ -404,6 +410,19 @@ pub fn crop_overlay_selection(
 pub fn get_overlay_image(app: AppHandle) -> Option<String> {
     app.try_state::<OverlayState>()
         .and_then(|s| s.0.lock().ok().and_then(|capture| capture.data_url.clone()))
+}
+
+/// Returns the current overlay mode: "screenshot" or "record"
+#[tauri::command]
+pub fn get_overlay_mode(app: AppHandle) -> String {
+    app.try_state::<OverlayState>()
+        .and_then(|s| s.0.lock().ok().map(|c| {
+            match c.overlay_mode {
+                OverlayMode::Screenshot => "screenshot".to_string(),
+                OverlayMode::Record => "record".to_string(),
+            }
+        }))
+        .unwrap_or_else(|| "screenshot".to_string())
 }
 
 #[tauri::command]

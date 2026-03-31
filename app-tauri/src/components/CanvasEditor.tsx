@@ -7,6 +7,21 @@ export type BackgroundOption =
   | { type: 'gradient'; stops: string[]; angle: number }
   | { type: 'image'; dataUrl: string };
 
+export type AspectRatio = {
+  label: string;
+  value: [number, number] | null; // null = free / original
+};
+
+export const ASPECT_RATIOS: AspectRatio[] = [
+  { label: 'Gốc', value: null },
+  { label: '16:9', value: [16, 9] },
+  { label: '9:16', value: [9, 16] },
+  { label: '4:3', value: [4, 3] },
+  { label: '3:2', value: [3, 2] },
+  { label: '1:1', value: [1, 1] },
+  { label: '21:9', value: [21, 9] },
+];
+
 interface CanvasEditorProps {
   imageUrl: string;
   onReady: (methods: any) => void;
@@ -51,7 +66,7 @@ function makeArrow(
   });
 }
 
-/** Draw the wallpaper background onto a canvas 2D context */
+/** Draw the wallpaper background into a canvas 2D context */
 function drawBackground(
   ctx: CanvasRenderingContext2D,
   bg: BackgroundOption,
@@ -69,7 +84,6 @@ function drawBackground(
     return;
   }
   if (bg.type === 'image' && bgImage) {
-    // Cover-fill: scale image to cover entire canvas
     const imgRatio = bgImage.naturalWidth / bgImage.naturalHeight;
     const canvasRatio = width / height;
     let sx = 0, sy = 0, sw = bgImage.naturalWidth, sh = bgImage.naturalHeight;
@@ -83,7 +97,6 @@ function drawBackground(
     ctx.drawImage(bgImage, sx, sy, sw, sh, 0, 0, width, height);
     return;
   }
-  // gradient
   if (bg.type === 'gradient') {
     const rad = (bg.angle * Math.PI) / 180;
     const cx = width / 2;
@@ -112,7 +125,10 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-const PADDING = 60; // px padding around screenshot when a bg is applied
+const PADDING = 60;
+
+// Custom property name to tag the screenshot object
+const SCREENSHOT_TAG = '__isScreenshot';
 
 export default function CanvasEditor({
   imageUrl, onReady, drawColor, drawSize, onDrawSizeChange, background,
@@ -135,6 +151,27 @@ export default function CanvasEditor({
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push(JSON.stringify(canvas.toJSON()));
     historyIndexRef.current = historyRef.current.length - 1;
+  };
+
+  /** Find the screenshot FabricImage on the canvas */
+  const findScreenshot = (canvas: fabric.Canvas): fabric.FabricImage | null => {
+    return canvas.getObjects().find((o: any) => (o as any)[SCREENSHOT_TAG]) as fabric.FabricImage | null ?? null;
+  };
+
+  /** Toggle screenshot selectability based on tool */
+  const setScreenshotInteractive = (canvas: fabric.Canvas, interactive: boolean) => {
+    const ss = findScreenshot(canvas);
+    if (!ss) return;
+    ss.set({
+      selectable: interactive,
+      evented: interactive,
+      hasControls: interactive,
+      hasBorders: interactive,
+    });
+    if (!interactive) {
+      canvas.discardActiveObject();
+    }
+    canvas.renderAll();
   };
 
   // ── Canvas init ───────────────────────────────────────────────────────────
@@ -184,7 +221,7 @@ export default function CanvasEditor({
         });
         canvas.backgroundImage = bgFi;
 
-        // ── Screenshot as selectable, resizable object ──
+        // ── Screenshot: NOT selectable by default ──
         const screenshotFi = new fabric.FabricImage(htmlImg, {
           left: pad, top: pad,
           scaleX: scale, scaleY: scale,
@@ -194,7 +231,12 @@ export default function CanvasEditor({
           cornerSize: 10,
           transparentCorners: false,
           lockUniScaling: true,
+          selectable: false,
+          evented: false,
+          hasControls: false,
+          hasBorders: false,
         });
+        (screenshotFi as any)[SCREENSHOT_TAG] = true;
         canvas.add(screenshotFi);
         canvas.sendObjectToBack(screenshotFi);
         canvas.renderAll();
@@ -211,7 +253,9 @@ export default function CanvasEditor({
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const active = canvas.getActiveObject();
       if (!active || (active as any).isEditing) return;
-      const selected = canvas.getActiveObjects();
+      // Prevent deleting the screenshot
+      if ((active as any)[SCREENSHOT_TAG]) return;
+      const selected = canvas.getActiveObjects().filter((o: any) => !(o as any)[SCREENSHOT_TAG]);
       canvas.discardActiveObject();
       canvas.remove(...selected);
       saveHistory(canvas);
@@ -255,7 +299,6 @@ export default function CanvasEditor({
 
       canvas.setDimensions({ width: canvasW, height: canvasH });
 
-      // Background-only rendering
       const offscreen = document.createElement('canvas');
       offscreen.width  = canvasW;
       offscreen.height = canvasH;
@@ -298,8 +341,11 @@ export default function CanvasEditor({
     const isDraw = currentTool === 'draw';
     fabricCanvas.isDrawingMode = isDraw;
 
+    // Toggle screenshot interactivity based on tool
+    const isSelectMode = currentTool === 'select';
+    setScreenshotInteractive(fabricCanvas, isSelectMode);
+
     if (isDraw) {
-      // Fabric.js v6: freeDrawingBrush is NOT auto-created — must instantiate manually
       if (!fabricCanvas.freeDrawingBrush) {
         fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
       }
@@ -436,7 +482,6 @@ export default function CanvasEditor({
           });
           canvas.backgroundImage = bgFi;
 
-          // Re-add the screenshot as a selectable object
           const screenshotFi = new fabric.FabricImage(img, {
             left: pad, top: pad,
             scaleX: scale, scaleY: scale,
@@ -446,7 +491,12 @@ export default function CanvasEditor({
             cornerSize: 10,
             transparentCorners: false,
             lockUniScaling: true,
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hasBorders: false,
           });
+          (screenshotFi as any)[SCREENSHOT_TAG] = true;
           canvas.add(screenshotFi);
           canvas.sendObjectToBack(screenshotFi);
           canvas.renderAll();
@@ -483,6 +533,94 @@ export default function CanvasEditor({
         fabricCanvas.discardActiveObject();
         fabricCanvas.renderAll();
         return fabricCanvas.toDataURL({ format: 'png', quality: 1, multiplier: 1 });
+      },
+      /** Resize canvas to match a specific aspect ratio */
+      resizeToAspectRatio: (ratio: [number, number] | null) => {
+        const ss = findScreenshot(fabricCanvas);
+        if (!ss) return;
+
+        const img = (ss as any)._element || (ss as any).getElement?.();
+        if (!img) return;
+
+        const imgW = img.naturalWidth || img.width;
+        const imgH = img.naturalHeight || img.height;
+
+        if (!ratio) {
+          // Restore original — recalculate with original image dimensions
+          const maxW = window.innerWidth - 100;
+          const maxH = window.innerHeight - 200;
+          let scale = 1;
+          if (imgW > maxW || imgH > maxH) scale = Math.min(maxW / imgW, maxH / imgH);
+
+          const hasBackground = bgRef.current.type !== 'none';
+          const pad = hasBackground ? PADDING : 0;
+          const canvasW = Math.round(imgW * scale) + pad * 2;
+          const canvasH = Math.round(imgH * scale) + pad * 2;
+
+          fabricCanvas.setDimensions({ width: canvasW, height: canvasH });
+          ss.set({ left: pad, top: pad, scaleX: scale, scaleY: scale });
+          fabricCanvas.renderAll();
+          // Rebuild background
+          reloadBackground(fabricCanvas);
+          return;
+        }
+
+        const [rw, rh] = ratio;
+        const maxW = window.innerWidth - 100;
+        const maxH = window.innerHeight - 200;
+
+        // Target canvas size based on aspect ratio
+        let canvasW: number, canvasH: number;
+        if (maxW / rw * rh <= maxH) {
+          canvasW = maxW;
+          canvasH = Math.round(maxW / rw * rh);
+        } else {
+          canvasH = maxH;
+          canvasW = Math.round(maxH / rh * rw);
+        }
+
+        const hasBackground = bgRef.current.type !== 'none';
+        const pad = hasBackground ? PADDING : 0;
+        const innerW = canvasW - pad * 2;
+        const innerH = canvasH - pad * 2;
+
+        // Scale image to fit inside the inner area (contain)
+        const scale = Math.min(innerW / imgW, innerH / imgH);
+        const scaledW = imgW * scale;
+        const scaledH = imgH * scale;
+
+        // Center image inside canvas
+        const offsetX = pad + (innerW - scaledW) / 2;
+        const offsetY = pad + (innerH - scaledH) / 2;
+
+        fabricCanvas.setDimensions({ width: canvasW, height: canvasH });
+        ss.set({ left: offsetX, top: offsetY, scaleX: scale, scaleY: scale });
+
+        // Rebuild background for new dimensions
+        const rebuildBg = async () => {
+          const offscreen = document.createElement('canvas');
+          offscreen.width = canvasW;
+          offscreen.height = canvasH;
+          const offCtx = offscreen.getContext('2d')!;
+
+          let bgImage: HTMLImageElement | null = null;
+          if (bgRef.current.type === 'image') {
+            bgImage = await loadImage((bgRef.current as any).dataUrl).catch(() => null);
+          }
+          drawBackground(offCtx, bgRef.current, canvasW, canvasH, bgImage);
+
+          const ci = new Image();
+          ci.onload = () => {
+            const bgFi = new fabric.FabricImage(ci, {
+              left: 0, top: 0, originX: 'left', originY: 'top',
+              scaleX: 1, scaleY: 1, selectable: false, evented: false,
+            });
+            fabricCanvas.backgroundImage = bgFi;
+            fabricCanvas.renderAll();
+          };
+          ci.src = offscreen.toDataURL('image/png');
+        };
+        rebuildBg();
       },
     });
   }, [fabricCanvas, onReady, imageUrl]);

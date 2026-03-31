@@ -13,6 +13,7 @@
     "core:window:allow-start-dragging",
     "core:event:allow-listen",
     "core:event:allow-emit",
+    "core:event:allow-emit-to",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister-all",
     "dialog:allow-save",

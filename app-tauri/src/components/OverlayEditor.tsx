@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { fetchImage } from '../idb';
+import { listen, emit } from '@tauri-apps/api/event';
 
 export default function OverlayEditor() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [endPos, setEndPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [overlayMode, setOverlayMode] = useState<'screenshot' | 'record'>('screenshot');
 
   useEffect(() => {
     let mounted = true;
@@ -21,6 +21,11 @@ export default function OverlayEditor() {
           setIsDragging(false);
           setStartPos({ x: 0, y: 0 });
           setEndPos({ x: 0, y: 0 });
+        }
+        // Fetch overlay mode
+        const mode = await invoke<string>('get_overlay_mode');
+        if (mounted) {
+          setOverlayMode(mode === 'record' ? 'record' : 'screenshot');
         }
       } catch (e) {
         console.error('Overlay failed to fetch image', e);
@@ -78,12 +83,33 @@ export default function OverlayEditor() {
       return;
     }
 
-    try {
-      const output = await invoke<string>('crop_overlay_selection', { x, y, width: w, height: h });
-      await invoke('close_overlay', { dataUrl: output });
-    } catch (error) {
-      console.error('Failed to crop selected area', error);
-      invoke('close_overlay', { dataUrl: null }).catch(console.error);
+    if (overlayMode === 'record') {
+      // For recording: close overlay then emit coords to main window
+      // We need to convert logical pixels to physical (Retina) pixels
+      const scaleFactor = window.devicePixelRatio || 1;
+      const physX = Math.round(x * scaleFactor);
+      const physY = Math.round(y * scaleFactor);
+      const physW = Math.round(w * scaleFactor);
+      const physH = Math.round(h * scaleFactor);
+
+      await invoke('close_overlay', { dataUrl: null });
+
+      // Emit to main window to start recording with these coords
+      await emit('region-record-start', {
+        x: physX,
+        y: physY,
+        width: physW,
+        height: physH,
+      });
+    } else {
+      // Screenshot mode (existing behavior)
+      try {
+        const output = await invoke<string>('crop_overlay_selection', { x, y, width: w, height: h });
+        await invoke('close_overlay', { dataUrl: output });
+      } catch (error) {
+        console.error('Failed to crop selected area', error);
+        invoke('close_overlay', { dataUrl: null }).catch(console.error);
+      }
     }
   };
 
@@ -91,6 +117,8 @@ export default function OverlayEditor() {
   const rectTop = Math.min(startPos.y, endPos.y);
   const rectWidth = Math.abs(endPos.x - startPos.x);
   const rectHeight = Math.abs(endPos.y - startPos.y);
+
+  const isRecord = overlayMode === 'record';
 
   return (
     <div
@@ -100,22 +128,37 @@ export default function OverlayEditor() {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-medium z-50 pointer-events-none">
-        Kéo thả để chọn vùng chụp (ấn ESC để huỷ)
+      <div className={`absolute top-4 left-1/2 -translate-x-1/2 ${isRecord ? 'bg-red-900/80' : 'bg-black/60'} text-white px-4 py-2 rounded-full text-sm font-medium z-50 pointer-events-none`}>
+        {isRecord
+          ? 'Kéo thả để chọn vùng quay (ấn ESC để huỷ)'
+          : 'Kéo thả để chọn vùng chụp (ấn ESC để huỷ)'
+        }
       </div>
 
       {!isDragging && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
       {isDragging && (
-        <div
-          className="absolute border border-white pointer-events-none"
-          style={{
-            left: rectLeft,
-            top: rectTop,
-            width: rectWidth,
-            height: rectHeight,
-            boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)',
-          }}
-        />
+        <>
+          <div
+            className={`absolute pointer-events-none ${isRecord ? 'border-2 border-red-500' : 'border border-white'}`}
+            style={{
+              left: rectLeft,
+              top: rectTop,
+              width: rectWidth,
+              height: rectHeight,
+              boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)',
+            }}
+          />
+          {/* Size indicator */}
+          <div
+            className="absolute pointer-events-none text-white text-xs bg-black/70 px-2 py-1 rounded"
+            style={{
+              left: rectLeft,
+              top: rectTop + rectHeight + 8,
+            }}
+          >
+            {Math.round(rectWidth)} × {Math.round(rectHeight)}
+          </div>
+        </>
       )}
     </div>
   );

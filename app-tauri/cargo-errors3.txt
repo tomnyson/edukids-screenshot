@@ -1,0 +1,13 @@
+    Updating crates.io index
+     Locking 1 package to latest compatible version
+      Adding http-range v0.1.5
+ Downloading crates ...
+  Downloaded http-range v0.1.5
+   Compiling tauri v2.10.3
+    Checking http-range v0.1.5
+   Compiling tauri-plugin-fs v2.4.5
+   Compiling tauri-plugin-global-shortcut v2.3.1
+   Compiling tauri-plugin-clipboard-manager v2.3.2
+   Compiling tauri-plugin-dialog v2.6.0
+   Compiling screenshot-tool v1.0.0 (/Applications/work/screenshot-tool/app-tauri/src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.83s

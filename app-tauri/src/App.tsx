@@ -5,6 +5,9 @@ import Toolbar from './components/Toolbar';
 import CanvasEditor, { type BackgroundOption } from './components/CanvasEditor';
 import PermissionGuide from './components/PermissionGuide';
 import OverlayEditor from './components/OverlayEditor';
+import RecordingBar from './components/RecordingBar';
+import FfmpegInstallModal from './components/FfmpegInstallModal';
+import RecordingPreview from './components/RecordingPreview';
 import AppLogo from './components/AppLogo';
 import edukidsLogo from './assets/edukids-logo.png';
 import { storeImage, fetchImage } from './idb';
@@ -27,8 +30,15 @@ function MainApp() {
   const unlistenRefs = useRef<Array<() => void>>([]);
   const [showAbout, setShowAbout] = useState(false);
 
+  // ── Recording state ──
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedFilePath, setRecordedFilePath] = useState<string | null>(null);
+  const [ffmpegMissing, setFfmpegMissing] = useState(false);
+
   // captureFlow defined before useEffect so the listener closures can call it
   const captureFlowRef = useRef<((isRegion: boolean) => Promise<void>) | undefined>(undefined);
+  const recordFlowRef = useRef<((isRegion: boolean) => Promise<void>) | undefined>(undefined);
+  const stopRecordRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
   const captureFlow = async (isRegion: boolean) => {
     try {
@@ -54,11 +64,60 @@ function MainApp() {
     }
   };
 
+  // ── Recording flows ──
+  const recordFlow = async (isRegion: boolean) => {
+    // Check FFmpeg first
+    const hasFFmpeg = await invoke<boolean>('check_ffmpeg_installed');
+    if (!hasFFmpeg) {
+      setFfmpegMissing(true);
+      return;
+    }
+
+    if (isRegion) {
+      // For region recording: capture screen first for overlay, then user selects region
+      try {
+        await invoke('hide_window');
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        const dataUrl = await invoke<string>('get_screen_capture');
+        // Start overlay in "record" mode
+        await invoke('start_region_capture', { dataUrl, mode: 'record' });
+      } catch (err: any) {
+        console.error('Record region capture failed:', err);
+        await invoke('show_window').catch(() => {});
+      }
+    } else {
+      // Full screen recording
+      try {
+        await invoke('hide_window');
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await invoke('start_recording_full');
+        setIsRecording(true);
+        // Show window so user can see recording bar
+        await invoke('show_window');
+      } catch (err: any) {
+        console.error('Start recording failed:', err);
+        await invoke('show_window').catch(() => {});
+      }
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      const filePath = await invoke<string>('stop_recording');
+      setIsRecording(false);
+      setRecordedFilePath(filePath);
+      await invoke('show_window').catch(() => {});
+    } catch (err: any) {
+      console.error('Stop recording failed:', err);
+      setIsRecording(false);
+    }
+  };
+
   captureFlowRef.current = captureFlow;
+  recordFlowRef.current = recordFlow;
+  stopRecordRef.current = stopRecording;
 
   // On startup, actively request Screen Recording permission.
-  // This will trigger the macOS system dialog if not yet granted.
-  // After the dialog is dismissed, check the result.
   useEffect(() => {
     invoke<boolean>('request_screen_recording_permission').then(granted => {
       if (!granted) {
@@ -66,7 +125,6 @@ function MainApp() {
         setAppState('no-permission');
       }
     }).catch(() => {
-      // If the request itself fails, attempt a preflight check
       invoke<boolean>('check_screen_recording_permission').then(ok => {
         if (!ok) {
           setCaptureError('macOS Screen Recording permission is not granted. Please enable in System Settings.');
@@ -95,12 +153,51 @@ function MainApp() {
         })
       );
 
+      // Region-record: user selected region in overlay, now start recording
+      unlistens.push(
+        await listen<{ x: number; y: number; width: number; height: number }>(
+          'region-record-start',
+          async (event) => {
+            const { x, y, width, height } = event.payload;
+            try {
+              await invoke('start_recording_region', { x, y, width, height });
+              setIsRecording(true);
+              await invoke('show_window').catch(() => {});
+            } catch (err: any) {
+              console.error('Region recording start failed:', err);
+              await invoke('show_window').catch(() => {});
+            }
+          }
+        )
+      );
+
       // Global shortcut events emitted by Rust backend
       unlistens.push(
         await listen('trigger-capture-region', () => captureFlowRef.current?.(true))
       );
       unlistens.push(
         await listen('trigger-capture-full', () => captureFlowRef.current?.(false))
+      );
+      unlistens.push(
+        await listen('trigger-record-region', () => {
+          if (isRecording) {
+            stopRecordRef.current?.();
+          } else {
+            recordFlowRef.current?.(true);
+          }
+        })
+      );
+      unlistens.push(
+        await listen('trigger-record-full', () => {
+          if (isRecording) {
+            stopRecordRef.current?.();
+          } else {
+            recordFlowRef.current?.(false);
+          }
+        })
+      );
+      unlistens.push(
+        await listen('trigger-stop-recording', () => stopRecordRef.current?.())
       );
       unlistens.push(
         await listen('show-about', () => setShowAbout(true))
@@ -142,6 +239,8 @@ function MainApp() {
 
   const handleCaptureRegion = async () => captureFlow(true);
   const handleCaptureFull = async () => captureFlow(false);
+  const handleRecordRegion = async () => recordFlow(true);
+  const handleRecordFull = async () => recordFlow(false);
 
   const handleSave = async () => {
     if (!editorRef || !image) return;
@@ -255,23 +354,45 @@ function MainApp() {
           </div>
         </div>
       )}
-      <Toolbar
-        onCaptureRegion={handleCaptureRegion}
-        onCaptureFull={handleCaptureFull}
-        onSave={handleSave}
-        onCopy={handleCopy}
-        onToolSelect={(tool) => editorRef?.setTool(tool)}
-        onUndo={() => editorRef?.undo()}
-        onRedo={() => editorRef?.redo()}
-        onClear={() => editorRef?.clearAll()}
-        hasImage={!!image}
-        drawColor={drawColor}
-        drawSize={drawSize}
-        onColorChange={setDrawColor}
-        onSizeChange={setDrawSize}
-        background={background}
-        onBgChange={setBackground}
-      />
+
+      {/* FFmpeg missing modal */}
+      {ffmpegMissing && (
+        <FfmpegInstallModal onClose={() => setFfmpegMissing(false)} />
+      )}
+
+      {/* Recording preview modal */}
+      {recordedFilePath && (
+        <RecordingPreview
+          filePath={recordedFilePath}
+          onClose={() => setRecordedFilePath(null)}
+        />
+      )}
+
+      {/* Show RecordingBar when recording, otherwise show Toolbar */}
+      {isRecording ? (
+        <RecordingBar onStop={() => stopRecording()} />
+      ) : (
+        <Toolbar
+          onCaptureRegion={handleCaptureRegion}
+          onCaptureFull={handleCaptureFull}
+          onRecordRegion={handleRecordRegion}
+          onRecordFull={handleRecordFull}
+          onSave={handleSave}
+          onCopy={handleCopy}
+          onToolSelect={(tool) => editorRef?.setTool(tool)}
+          onUndo={() => editorRef?.undo()}
+          onRedo={() => editorRef?.redo()}
+          onClear={() => editorRef?.clearAll()}
+          hasImage={!!image}
+          drawColor={drawColor}
+          drawSize={drawSize}
+          onColorChange={setDrawColor}
+          onSizeChange={setDrawSize}
+          background={background}
+          onBgChange={setBackground}
+          onAspectRatio={(ratio) => editorRef?.resizeToAspectRatio(ratio)}
+        />
+      )}
       <div className="flex-1 bg-gray-900 flex overflow-auto p-4 pt-8">
         {image ? (
           <div className="m-auto">
