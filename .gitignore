@@ -92,3 +92,4 @@ pids/
 *.orig
 coverage/
 .nyc_output/
+app-tauri/.cargo-tmp/
