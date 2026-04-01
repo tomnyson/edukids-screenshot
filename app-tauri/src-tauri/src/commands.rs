@@ -70,12 +70,17 @@ fn get_mouse_position() -> (i32, i32) {
 #[cfg(windows)]
 fn get_mouse_position() -> (i32, i32) {
     #[repr(C)]
-    struct POINT { x: i32, y: i32 }
+    struct POINT {
+        x: i32,
+        y: i32,
+    }
     extern "system" {
         fn GetCursorPos(pt: *mut POINT) -> i32;
     }
     let mut pt = POINT { x: 0, y: 0 };
-    unsafe { GetCursorPos(&mut pt); }
+    unsafe {
+        GetCursorPos(&mut pt);
+    }
     (pt.x, pt.y)
 }
 #[cfg(not(any(target_os = "macos", windows)))]
@@ -85,7 +90,7 @@ fn get_mouse_position() -> (i32, i32) {
 
 fn screen_under_cursor() -> Result<(usize, screenshots::Screen), String> {
     let screens = screenshots::Screen::all().map_err(|e| e.to_string())?;
-    
+
     let (mx, my) = get_mouse_position();
     for (i, screen) in screens.iter().enumerate() {
         let d = screen.display_info;
@@ -93,22 +98,29 @@ fn screen_under_cursor() -> Result<(usize, screenshots::Screen), String> {
             return Ok((i, *screen));
         }
     }
-    
+
     // If somehow not found, fallback to primary
-    let fallback_idx = screens.iter().position(|s| s.display_info.is_primary).unwrap_or(0);
+    let fallback_idx = screens
+        .iter()
+        .position(|s| s.display_info.is_primary)
+        .unwrap_or(0);
     Ok((fallback_idx, screens[fallback_idx]))
 }
 
 fn configure_overlay_window(overlay: &WebviewWindow, screen: &screenshots::Screen) {
     let display = screen.display_info;
-    overlay.set_position(Position::Logical(LogicalPosition::new(
-        display.x as f64,
-        display.y as f64,
-    ))).ok();
-    overlay.set_size(Size::Logical(LogicalSize::new(
-        display.width as f64,
-        display.height as f64,
-    ))).ok();
+    overlay
+        .set_position(Position::Logical(LogicalPosition::new(
+            display.x as f64,
+            display.y as f64,
+        )))
+        .ok();
+    overlay
+        .set_size(Size::Logical(LogicalSize::new(
+            display.width as f64,
+            display.height as f64,
+        )))
+        .ok();
 }
 
 // ── Screen capture ────────────────────────────────────────────────────────────
@@ -141,11 +153,12 @@ fn capture_screen_at_index(target_index: usize, screens_count: usize) -> Result<
     let target_path = if target_index < tmp_paths.len() && tmp_paths[target_index].exists() {
         &tmp_paths[target_index]
     } else {
-        tmp_paths.first().ok_or("No capture files created")?  
+        tmp_paths.first().ok_or("No capture files created")?
     };
-    let bytes = std::fs::read(target_path)
-        .map_err(|e| format!("Failed to read capture: {}", e))?;
-    for p in &tmp_paths { std::fs::remove_file(p).ok(); }
+    let bytes = std::fs::read(target_path).map_err(|e| format!("Failed to read capture: {}", e))?;
+    for p in &tmp_paths {
+        std::fs::remove_file(p).ok();
+    }
     Ok(bytes)
 }
 
@@ -153,14 +166,15 @@ fn capture_screen_at_index(target_index: usize, screens_count: usize) -> Result<
 #[cfg(not(target_os = "macos"))]
 fn capture_screen_at_index(target_index: usize, _screens_count: usize) -> Result<Vec<u8>, String> {
     let screens = screenshots::Screen::all().map_err(|e| e.to_string())?;
-    let screen = screens.get(target_index)
+    let screen = screens
+        .get(target_index)
         .or_else(|| screens.first())
         .ok_or("No screen found")?;
 
     let rgba = screen.capture().map_err(|e| e.to_string())?;
     let dyn_img = image::DynamicImage::ImageRgba8(
         image::RgbaImage::from_raw(rgba.width(), rgba.height(), rgba.into_raw())
-            .ok_or("Failed to create image buffer")?  
+            .ok_or("Failed to create image buffer")?,
     );
     let mut jpeg_bytes: Vec<u8> = Vec::new();
     dyn_img
@@ -175,7 +189,10 @@ pub fn get_screen_capture() -> Result<String, String> {
     let (target_index, _screen) = screen_under_cursor()?;
     let screens_count = screenshots::Screen::all().map(|s| s.len()).unwrap_or(1);
     let bytes = capture_screen_at_index(target_index, screens_count)?;
-    Ok(format!("data:image/jpeg;base64,{}", STANDARD.encode(&bytes)))
+    Ok(format!(
+        "data:image/jpeg;base64,{}",
+        STANDARD.encode(&bytes)
+    ))
 }
 
 /// Returns `true` if Screen Recording is authorized, `false` otherwise.
@@ -195,7 +212,11 @@ pub async fn save_image(
 ) -> Result<bool, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    let b64 = data_url.split(',').nth(1).ok_or("Invalid data URL")?.to_string();
+    let b64 = data_url
+        .split(',')
+        .nth(1)
+        .ok_or("Invalid data URL")?
+        .to_string();
     let bytes = STANDARD.decode(&b64).map_err(|e| e.to_string())?;
 
     let file_path = app
@@ -268,7 +289,8 @@ pub fn minimize_window(app: AppHandle) -> Result<(), String> {
 pub fn toggle_fullscreen(app: AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("main") {
         let is_fullscreen = win.is_fullscreen().unwrap_or(false);
-        win.set_fullscreen(!is_fullscreen).map_err(|e| e.to_string())?;
+        win.set_fullscreen(!is_fullscreen)
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -300,7 +322,11 @@ pub fn open_screen_recording_settings() -> Result<(), String> {
 // ── Overlay (region selector window) ─────────────────────────────────────────
 
 #[tauri::command]
-pub fn start_region_capture(app: AppHandle, data_url: String, mode: Option<String>) -> Result<(), String> {
+pub fn start_region_capture(
+    app: AppHandle,
+    data_url: String,
+    mode: Option<String>,
+) -> Result<(), String> {
     let (_, screen) = screen_under_cursor()?;
 
     let overlay_mode = match mode.as_deref() {
@@ -324,15 +350,19 @@ pub fn start_region_capture(app: AppHandle, data_url: String, mode: Option<Strin
         return Ok(());
     }
 
-    let overlay = WebviewWindowBuilder::new(&app, "overlay", WebviewUrl::App("index.html#overlay".into()))
-        .decorations(false)
-        .always_on_top(true)
-        .focused(true)
-        .visible_on_all_workspaces(true)
-        .skip_taskbar(true)
-        .shadow(false)
-        .build()
-        .map_err(|e| e.to_string())?;
+    let overlay = WebviewWindowBuilder::new(
+        &app,
+        "overlay",
+        WebviewUrl::App("index.html#overlay".into()),
+    )
+    .decorations(false)
+    .always_on_top(true)
+    .focused(true)
+    .visible_on_all_workspaces(true)
+    .skip_taskbar(true)
+    .shadow(false)
+    .build()
+    .map_err(|e| e.to_string())?;
 
     // On macOS, fullscreen(true) triggers a Native Space transition (slide animation).
     // We prevent this by manually overlaying the selected display dimensions.
@@ -359,7 +389,8 @@ pub fn crop_overlay_selection(
 
     // Decode base64 data URL → raw bytes
     let b64 = data_url
-        .split(',').nth(1)
+        .split(',')
+        .nth(1)
         .ok_or("Invalid data URL format")?;
     let img_bytes = STANDARD.decode(b64).map_err(|e| e.to_string())?;
 
@@ -382,8 +413,14 @@ pub fn crop_overlay_selection(
 
     // Verify scale makes sense — if screencapture wrote at a different resolution,
     // fall back to img_w / logical_screen_w ratio.
-    let screen_phys_w = monitor.as_ref().map(|m| m.size().width as f64).unwrap_or(img_w);
-    let screen_phys_h = monitor.as_ref().map(|m| m.size().height as f64).unwrap_or(img_h);
+    let screen_phys_w = monitor
+        .as_ref()
+        .map(|m| m.size().width as f64)
+        .unwrap_or(img_w);
+    let screen_phys_h = monitor
+        .as_ref()
+        .map(|m| m.size().height as f64)
+        .unwrap_or(img_h);
     let logical_screen_w = screen_phys_w / scale_factor;
     let logical_screen_h = screen_phys_h / scale_factor;
 
@@ -393,17 +430,25 @@ pub fn crop_overlay_selection(
 
     let cx = (x * scale_x).floor().max(0.0) as u32;
     let cy = (y * scale_y).floor().max(0.0) as u32;
-    let cw = ((width * scale_x).round() as u32).max(1).min(img.width().saturating_sub(cx));
-    let ch = ((height * scale_y).round() as u32).max(1).min(img.height().saturating_sub(cy));
+    let cw = ((width * scale_x).round() as u32)
+        .max(1)
+        .min(img.width().saturating_sub(cx));
+    let ch = ((height * scale_y).round() as u32)
+        .max(1)
+        .min(img.height().saturating_sub(cy));
 
     let cropped = img.crop_imm(cx, cy, cw, ch);
 
     // Encode as PNG for lossless crop quality
     let mut png_bytes: Vec<u8> = Vec::new();
-    cropped.write_to(&mut Cursor::new(&mut png_bytes), ImageFormat::Png)
+    cropped
+        .write_to(&mut Cursor::new(&mut png_bytes), ImageFormat::Png)
         .map_err(|e| e.to_string())?;
 
-    Ok(format!("data:image/png;base64,{}", STANDARD.encode(&png_bytes)))
+    Ok(format!(
+        "data:image/png;base64,{}",
+        STANDARD.encode(&png_bytes)
+    ))
 }
 
 #[tauri::command]
@@ -416,12 +461,12 @@ pub fn get_overlay_image(app: AppHandle) -> Option<String> {
 #[tauri::command]
 pub fn get_overlay_mode(app: AppHandle) -> String {
     app.try_state::<OverlayState>()
-        .and_then(|s| s.0.lock().ok().map(|c| {
-            match c.overlay_mode {
+        .and_then(|s| {
+            s.0.lock().ok().map(|c| match c.overlay_mode {
                 OverlayMode::Screenshot => "screenshot".to_string(),
                 OverlayMode::Record => "record".to_string(),
-            }
-        }))
+            })
+        })
         .unwrap_or_else(|| "screenshot".to_string())
 }
 
@@ -441,7 +486,9 @@ pub fn close_overlay(app: AppHandle, data_url: Option<String>) -> Result<(), Str
         main_win.show().ok();
         main_win.set_focus().ok();
         if let Some(url) = data_url {
-            main_win.emit("region-captured", url).map_err(|e| e.to_string())?;
+            main_win
+                .emit("region-captured", url)
+                .map_err(|e| e.to_string())?;
         }
     }
     Ok(())

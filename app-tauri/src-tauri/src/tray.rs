@@ -2,25 +2,57 @@
 
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::{TrayIconEvent, MouseButton},
+    tray::{MouseButton, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
 
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
-    let capture_region = MenuItem::with_id(app, "capture_region", "📷  Chụp vùng  (⌘⇧2)",        true, None::<&str>)?;
-    let capture_full   = MenuItem::with_id(app, "capture_full",   "🖥️  Chụp toàn màn hình  (⌘⇧3)", true, None::<&str>)?;
-    let record_region  = MenuItem::with_id(app, "record_region",  "⏺  Quay vùng  (⌘⇧4)",         true, None::<&str>)?;
-    let record_full    = MenuItem::with_id(app, "record_full",    "⏺  Quay toàn màn hình  (⌘⇧5)",  true, None::<&str>)?;
-    let stop_record    = MenuItem::with_id(app, "stop_record",    "⏹  Dừng quay",                  true, None::<&str>)?;
-    let open_window    = MenuItem::with_id(app, "open_window",    "🪟  Mở cửa sổ",                true, None::<&str>)?;
-    let about          = MenuItem::with_id(app, "about",          "ℹ️  Giới thiệu",               true, None::<&str>)?;
-    let quit           = MenuItem::with_id(app, "quit",           "Thoát",                         true, None::<&str>)?;
+    let capture_region = MenuItem::with_id(
+        app,
+        "capture_region",
+        "📷  Chụp vùng  (⌘⇧2)",
+        true,
+        None::<&str>,
+    )?;
+    let capture_full = MenuItem::with_id(
+        app,
+        "capture_full",
+        "🖥️  Chụp toàn màn hình  (⌘⇧3)",
+        true,
+        None::<&str>,
+    )?;
+    let record_region = MenuItem::with_id(
+        app,
+        "record_region",
+        "⏺  Quay vùng  (⌘⇧4)",
+        true,
+        None::<&str>,
+    )?;
+    let record_full = MenuItem::with_id(
+        app,
+        "record_full",
+        "⏺  Quay toàn màn hình  (⌘⇧5)",
+        true,
+        None::<&str>,
+    )?;
+    let stop_record = MenuItem::with_id(app, "stop_record", "⏹  Dừng quay", true, None::<&str>)?;
+    let open_window = MenuItem::with_id(app, "open_window", "🪟  Mở cửa sổ", true, None::<&str>)?;
+    let about = MenuItem::with_id(app, "about", "ℹ️  Giới thiệu", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Thoát", true, None::<&str>)?;
 
-    let menu = Menu::with_items(app, &[
-        &capture_region, &capture_full,
-        &record_region, &record_full, &stop_record,
-        &open_window, &about, &quit,
-    ])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &capture_region,
+            &capture_full,
+            &record_region,
+            &record_full,
+            &stop_record,
+            &open_window,
+            &about,
+            &quit,
+        ],
+    )?;
 
     if let Some(tray) = app.tray_by_id("main") {
         tray.set_menu(Some(menu))?;
@@ -77,7 +109,13 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         });
         tray.on_tray_icon_event(|_tray, event| {
             // Left click on macOS → show_menu_on_left_click handles it
-            let TrayIconEvent::Click { button: MouseButton::Left, .. } = event else { return; };
+            let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                ..
+            } = event
+            else {
+                return;
+            };
         });
     }
 

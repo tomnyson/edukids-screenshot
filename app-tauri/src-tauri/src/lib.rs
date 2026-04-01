@@ -54,50 +54,62 @@ pub fn run() {
             }
 
             // Register global shortcuts → emit events to frontend
-            use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
             use tauri::Emitter;
+            use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
             let h1 = handle.clone();
-            handle.global_shortcut().on_shortcut("CommandOrControl+Shift+2", move |_app, _sc, event| {
-                if event.state == ShortcutState::Pressed {
-                    use tauri::Manager;
-                    if let Some(win) = h1.get_webview_window("main") {
-                        win.emit("trigger-capture-region", ()).ok();
+            handle.global_shortcut().on_shortcut(
+                "CommandOrControl+Shift+2",
+                move |_app, _sc, event| {
+                    if event.state == ShortcutState::Pressed {
+                        use tauri::Manager;
+                        if let Some(win) = h1.get_webview_window("main") {
+                            win.emit("trigger-capture-region", ()).ok();
+                        }
                     }
-                }
-            })?;
+                },
+            )?;
 
             let h2 = handle.clone();
-            handle.global_shortcut().on_shortcut("CommandOrControl+Shift+3", move |_app, _sc, event| {
-                if event.state == ShortcutState::Pressed {
-                    use tauri::Manager;
-                    if let Some(win) = h2.get_webview_window("main") {
-                        win.emit("trigger-capture-full", ()).ok();
+            handle.global_shortcut().on_shortcut(
+                "CommandOrControl+Shift+3",
+                move |_app, _sc, event| {
+                    if event.state == ShortcutState::Pressed {
+                        use tauri::Manager;
+                        if let Some(win) = h2.get_webview_window("main") {
+                            win.emit("trigger-capture-full", ()).ok();
+                        }
                     }
-                }
-            })?;
+                },
+            )?;
 
             // ⌘⇧4 → toggle record region
             let h4 = handle.clone();
-            handle.global_shortcut().on_shortcut("CommandOrControl+Shift+4", move |_app, _sc, event| {
-                if event.state == ShortcutState::Pressed {
-                    use tauri::Manager;
-                    if let Some(win) = h4.get_webview_window("main") {
-                        win.emit("trigger-record-region", ()).ok();
+            handle.global_shortcut().on_shortcut(
+                "CommandOrControl+Shift+4",
+                move |_app, _sc, event| {
+                    if event.state == ShortcutState::Pressed {
+                        use tauri::Manager;
+                        if let Some(win) = h4.get_webview_window("main") {
+                            win.emit("trigger-record-region", ()).ok();
+                        }
                     }
-                }
-            })?;
+                },
+            )?;
 
             // ⌘⇧5 → toggle record full
             let h5 = handle.clone();
-            handle.global_shortcut().on_shortcut("CommandOrControl+Shift+5", move |_app, _sc, event| {
-                if event.state == ShortcutState::Pressed {
-                    use tauri::Manager;
-                    if let Some(win) = h5.get_webview_window("main") {
-                        win.emit("trigger-record-full", ()).ok();
+            handle.global_shortcut().on_shortcut(
+                "CommandOrControl+Shift+5",
+                move |_app, _sc, event| {
+                    if event.state == ShortcutState::Pressed {
+                        use tauri::Manager;
+                        if let Some(win) = h5.get_webview_window("main") {
+                            win.emit("trigger-record-full", ()).ok();
+                        }
                     }
-                }
-            })?;
+                },
+            )?;
 
             Ok(())
         })

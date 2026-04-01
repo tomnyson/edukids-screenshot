@@ -3,19 +3,17 @@
 // Uses `ffmpeg -f avfoundation` on macOS to capture the screen (full or region)
 // and encode directly to MP4 (H.264 / libx264).
 
-use std::io::Write;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::time::Instant;
 
 use tauri::{AppHandle, Emitter, Manager};
+#[cfg(target_os = "windows")]
 use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::CommandEvent;
 
 // ── State ────────────────────────────────────────────────────────────────────
 
 #[derive(Default)]
-pub struct RecordingInner {
 pub struct RecordingInner {
     // We store the pid instead of the generic process child to allow killing
     process_id: Option<u32>,
@@ -53,10 +51,10 @@ fn tmp_output_path() -> String {
 
 /// All known locations where ffmpeg might exist on macOS.
 const KNOWN_FFMPEG_PATHS: &[&str] = &[
-    "/opt/homebrew/bin/ffmpeg",       // Apple Silicon Homebrew
-    "/usr/local/bin/ffmpeg",          // Intel Homebrew
-    "/opt/local/bin/ffmpeg",          // MacPorts
-    "/usr/bin/ffmpeg",                // System (unlikely on macOS)
+    "/opt/homebrew/bin/ffmpeg",                   // Apple Silicon Homebrew
+    "/usr/local/bin/ffmpeg",                      // Intel Homebrew
+    "/opt/local/bin/ffmpeg",                      // MacPorts
+    "/usr/bin/ffmpeg",                            // System (unlikely on macOS)
     "/opt/homebrew/Cellar/ffmpeg/8.1/bin/ffmpeg", // Direct Cellar path
 ];
 
@@ -85,10 +83,7 @@ fn get_ffmpeg_path() -> Option<String> {
     }
 
     // 2. Try `which ffmpeg` (works from terminal-launched apps)
-    if let Ok(output) = Command::new("/usr/bin/which")
-        .arg("ffmpeg")
-        .output()
-    {
+    if let Ok(output) = Command::new("/usr/bin/which").arg("ffmpeg").output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !path.is_empty() && std::path::Path::new(&path).exists() {
@@ -156,13 +151,30 @@ pub fn get_ffmpeg_debug_info() -> String {
     // Check which
     if let Ok(output) = Command::new("/usr/bin/which").arg("ffmpeg").output() {
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        info.push_str(&format!("which: {}\n", if stdout.is_empty() { "(not found)" } else { &stdout }));
+        info.push_str(&format!(
+            "which: {}\n",
+            if stdout.is_empty() {
+                "(not found)"
+            } else {
+                &stdout
+            }
+        ));
     }
 
     // Check shell which
-    if let Ok(output) = Command::new("/bin/zsh").args(["-l", "-c", "which ffmpeg"]).output() {
+    if let Ok(output) = Command::new("/bin/zsh")
+        .args(["-l", "-c", "which ffmpeg"])
+        .output()
+    {
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        info.push_str(&format!("zsh -l -c which: {}\n", if stdout.is_empty() { "(not found)" } else { &stdout }));
+        info.push_str(&format!(
+            "zsh -l -c which: {}\n",
+            if stdout.is_empty() {
+                "(not found)"
+            } else {
+                &stdout
+            }
+        ));
     }
 
     // Final resolution
@@ -238,20 +250,29 @@ pub fn start_recording_full(app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     let mut command = std::process::Command::new(ffmpeg_cmd);
-    
+
     #[cfg(target_os = "macos")]
     let child = command
         .args([
             "-y",
-            "-f", "avfoundation",
-            "-framerate", "30",
-            "-capture_cursor", "1",
-            "-i", &format!("{}:none", screen_idx),
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "20",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
+            "-f",
+            "avfoundation",
+            "-framerate",
+            "30",
+            "-capture_cursor",
+            "1",
+            "-i",
+            &format!("{}:none", screen_idx),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
             &output,
         ])
         .stdin(Stdio::piped())
@@ -261,19 +282,30 @@ pub fn start_recording_full(app: AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Failed to start ffmpeg: {}", e))?;
 
     #[cfg(target_os = "windows")]
-    let mut sidecar = app.shell().sidecar("ffmpeg")
+    let mut sidecar = app
+        .shell()
+        .sidecar("ffmpeg")
         .map_err(|e| format!("Failed to create sidecar: {}", e))?
         .args([
             "-y",
-            "-f", "gdigrab",
-            "-framerate", "30",
-            "-draw_mouse", "1",
-            "-i", "desktop",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "20",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
+            "-f",
+            "gdigrab",
+            "-framerate",
+            "30",
+            "-draw_mouse",
+            "1",
+            "-i",
+            "desktop",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
             &output,
         ]);
 
@@ -285,7 +317,9 @@ pub fn start_recording_full(app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        let (mut rx, child) = sidecar.spawn().map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
+        let (mut rx, child) = sidecar
+            .spawn()
+            .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
         inner.process_id = Some(child.pid());
         // Start a thread to drain events
         tauri::async_runtime::spawn(async move {
@@ -333,16 +367,26 @@ pub fn start_recording_region(
     let child = std::process::Command::new(ffmpeg_cmd)
         .args([
             "-y",
-            "-f", "avfoundation",
-            "-framerate", "30",
-            "-capture_cursor", "1",
-            "-i", &format!("{}:none", screen_idx),
-            "-vf", &crop_filter,
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "20",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
+            "-f",
+            "avfoundation",
+            "-framerate",
+            "30",
+            "-capture_cursor",
+            "1",
+            "-i",
+            &format!("{}:none", screen_idx),
+            "-vf",
+            &crop_filter,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
             &output,
         ])
         .stdin(Stdio::piped())
@@ -352,20 +396,32 @@ pub fn start_recording_region(
         .map_err(|e| format!("Failed to start ffmpeg: {}", e))?;
 
     #[cfg(target_os = "windows")]
-    let mut sidecar = app.shell().sidecar("ffmpeg")
+    let mut sidecar = app
+        .shell()
+        .sidecar("ffmpeg")
         .map_err(|e| format!("Failed to create sidecar: {}", e))?
         .args([
             "-y",
-            "-f", "gdigrab",
-            "-framerate", "30",
-            "-draw_mouse", "1",
-            "-i", "desktop",
-            "-vf", &crop_filter,
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "20",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
+            "-f",
+            "gdigrab",
+            "-framerate",
+            "30",
+            "-draw_mouse",
+            "1",
+            "-i",
+            "desktop",
+            "-vf",
+            &crop_filter,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
             &output,
         ]);
 
@@ -376,11 +432,11 @@ pub fn start_recording_region(
 
     #[cfg(target_os = "windows")]
     {
-        let (mut rx, child) = sidecar.spawn().map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
+        let (mut rx, child) = sidecar
+            .spawn()
+            .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
         inner.process_id = Some(child.pid());
-        tauri::async_runtime::spawn(async move {
-            while let Some(event) = rx.recv().await {}
-        });
+        tauri::async_runtime::spawn(async move { while let Some(event) = rx.recv().await {} });
     }
 
     inner.output_path = Some(output);
@@ -397,19 +453,20 @@ pub fn stop_recording(app: AppHandle) -> Result<String, String> {
     let mut inner = state.0.lock().map_err(|e| e.to_string())?;
 
     let pid = inner.process_id.take().ok_or("Not currently recording")?;
-    let output_path = inner
-        .output_path
-        .take()
-        .ok_or("No output path")?;
+    let output_path = inner.output_path.take().ok_or("No output path")?;
     inner.start_time = None;
 
     // We can gracefully stop ffmpeg on Windows/Mac by sending a signal or killing
     #[cfg(target_family = "unix")]
     {
-        // On Unix, send SIGINT for graceful shutdown
-        unsafe { libc::kill(pid as libc::pid_t, libc::SIGINT); }
+        // On Unix, send SIGINT for graceful shutdown, then fall back to TERM.
+        let _ = Command::new("/bin/kill")
+            .args(["-s", "INT", &pid.to_string()])
+            .status();
         std::thread::sleep(std::time::Duration::from_millis(1500));
-        unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM); }
+        let _ = Command::new("/bin/kill")
+            .args(["-s", "TERM", &pid.to_string()])
+            .status();
     }
 
     #[cfg(target_os = "windows")]
@@ -455,7 +512,11 @@ pub fn is_recording(app: AppHandle) -> bool {
 
 /// Save the recorded video to a user-chosen location.
 #[tauri::command]
-pub async fn save_recording(app: AppHandle, source_path: String, default_name: String) -> Result<bool, String> {
+pub async fn save_recording(
+    app: AppHandle,
+    source_path: String,
+    default_name: String,
+) -> Result<bool, String> {
     use tauri_plugin_dialog::DialogExt;
 
     let bytes = std::fs::read(&source_path).map_err(|e| e.to_string())?;
