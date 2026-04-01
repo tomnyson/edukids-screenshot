@@ -9,12 +9,16 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_shell::ShellExt;
+use tauri_plugin_shell::process::CommandEvent;
 
 // ── State ────────────────────────────────────────────────────────────────────
 
 #[derive(Default)]
 pub struct RecordingInner {
-    process: Option<Child>,
+pub struct RecordingInner {
+    // We store the pid instead of the generic process child to allow killing
+    process_id: Option<u32>,
     output_path: Option<String>,
     start_time: Option<Instant>,
 }
@@ -126,7 +130,14 @@ fn get_ffmpeg_path() -> Option<String> {
 /// Check whether `ffmpeg` is available.
 #[tauri::command]
 pub fn check_ffmpeg_installed() -> bool {
-    get_ffmpeg_path().is_some()
+    #[cfg(target_os = "windows")]
+    {
+        true // Windows uses bundled sidecar
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        get_ffmpeg_path().is_some()
+    }
 }
 
 /// Return debugging info about FFmpeg detection (helps diagnose issues).
@@ -215,16 +226,21 @@ pub fn start_recording_full(app: AppHandle) -> Result<(), String> {
     let state = app.state::<RecordingState>();
     let mut inner = state.0.lock().map_err(|e| e.to_string())?;
 
-    if inner.process.is_some() {
+    if inner.process_id.is_some() {
         return Err("Already recording".to_string());
     }
 
     let screen_idx = avfoundation_screen_index();
     let output = tmp_output_path();
 
+    #[cfg(target_os = "macos")]
     let ffmpeg_cmd = get_ffmpeg_path().ok_or("FFmpeg is not installed")?;
 
-    let child = Command::new(ffmpeg_cmd)
+    #[cfg(target_os = "macos")]
+    let mut command = std::process::Command::new(ffmpeg_cmd);
+    
+    #[cfg(target_os = "macos")]
+    let child = command
         .args([
             "-y",
             "-f", "avfoundation",
@@ -244,7 +260,41 @@ pub fn start_recording_full(app: AppHandle) -> Result<(), String> {
         .spawn()
         .map_err(|e| format!("Failed to start ffmpeg: {}", e))?;
 
-    inner.process = Some(child);
+    #[cfg(target_os = "windows")]
+    let mut sidecar = app.shell().sidecar("ffmpeg")
+        .map_err(|e| format!("Failed to create sidecar: {}", e))?
+        .args([
+            "-y",
+            "-f", "gdigrab",
+            "-framerate", "30",
+            "-draw_mouse", "1",
+            "-i", "desktop",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "20",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            &output,
+        ]);
+
+    #[cfg(target_os = "macos")]
+    {
+        inner.process_id = Some(child.id());
+        // Since we don't have stdin easily available in sidecar, we'll kill by pid
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let (mut rx, child) = sidecar.spawn().map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
+        inner.process_id = Some(child.pid());
+        // Start a thread to drain events
+        tauri::async_runtime::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                // Ignore stdout/stderr
+            }
+        });
+    }
+
     inner.output_path = Some(output);
     inner.start_time = Some(Instant::now());
 
@@ -264,7 +314,7 @@ pub fn start_recording_region(
     let state = app.state::<RecordingState>();
     let mut inner = state.0.lock().map_err(|e| e.to_string())?;
 
-    if inner.process.is_some() {
+    if inner.process_id.is_some() {
         return Err("Already recording".to_string());
     }
 
@@ -276,9 +326,11 @@ pub fn start_recording_region(
 
     let crop_filter = format!("crop={}:{}:{}:{}", w, h, x, y);
 
+    #[cfg(target_os = "macos")]
     let ffmpeg_cmd = get_ffmpeg_path().ok_or("FFmpeg is not installed")?;
 
-    let child = Command::new(ffmpeg_cmd)
+    #[cfg(target_os = "macos")]
+    let child = std::process::Command::new(ffmpeg_cmd)
         .args([
             "-y",
             "-f", "avfoundation",
@@ -299,7 +351,38 @@ pub fn start_recording_region(
         .spawn()
         .map_err(|e| format!("Failed to start ffmpeg: {}", e))?;
 
-    inner.process = Some(child);
+    #[cfg(target_os = "windows")]
+    let mut sidecar = app.shell().sidecar("ffmpeg")
+        .map_err(|e| format!("Failed to create sidecar: {}", e))?
+        .args([
+            "-y",
+            "-f", "gdigrab",
+            "-framerate", "30",
+            "-draw_mouse", "1",
+            "-i", "desktop",
+            "-vf", &crop_filter,
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "20",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            &output,
+        ]);
+
+    #[cfg(target_os = "macos")]
+    {
+        inner.process_id = Some(child.id());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let (mut rx, child) = sidecar.spawn().map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
+        inner.process_id = Some(child.pid());
+        tauri::async_runtime::spawn(async move {
+            while let Some(event) = rx.recv().await {}
+        });
+    }
+
     inner.output_path = Some(output);
     inner.start_time = Some(Instant::now());
 
@@ -313,35 +396,35 @@ pub fn stop_recording(app: AppHandle) -> Result<String, String> {
     let state = app.state::<RecordingState>();
     let mut inner = state.0.lock().map_err(|e| e.to_string())?;
 
-    let mut child = inner.process.take().ok_or("Not currently recording")?;
+    let pid = inner.process_id.take().ok_or("Not currently recording")?;
     let output_path = inner
         .output_path
         .take()
         .ok_or("No output path")?;
     inner.start_time = None;
 
-    if let Some(ref mut stdin) = child.stdin {
-        stdin.write_all(b"q").ok();
-        stdin.flush().ok();
+    // We can gracefully stop ffmpeg on Windows/Mac by sending a signal or killing
+    #[cfg(target_family = "unix")]
+    {
+        // On Unix, send SIGINT for graceful shutdown
+        unsafe { libc::kill(pid as libc::pid_t, libc::SIGINT); }
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM); }
     }
 
-    let start = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) => {
-                if start.elapsed().as_secs() > 5 {
-                    child.kill().ok();
-                    child.wait().ok();
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
-            Err(_) => {
-                child.kill().ok();
-                break;
-            }
-        }
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows it's harder to inject 'q' without stdin.
+        // Tauri v2 shell plugin doesn't wrap stdin cleanly for easy writing if we spawned rx event loop
+        // We will just try to run taskkill cleanly
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string()])
+            .output();
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+        // Force kill if still there
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .output();
     }
 
     app.emit("recording-stopped", &output_path).ok();
@@ -366,7 +449,7 @@ pub fn is_recording(app: AppHandle) -> bool {
         .0
         .lock()
         .ok()
-        .map(|i| i.process.is_some())
+        .map(|i| i.process_id.is_some())
         .unwrap_or(false)
 }
 
