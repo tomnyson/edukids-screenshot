@@ -1,7 +1,7 @@
 # 📸 Edukids Screenshot
 
 <div align="center">
-  <img src="app-tauri/src/assets/edukids-logo.png" width="120" alt="Edukids Screenshot Logo" />
+  <img src="src/assets/edukids-logo.png" width="120" alt="Edukids Screenshot Logo" />
   <h3>Ứng dụng chụp màn hình & chỉnh sửa ảnh chuyên nghiệp</h3>
   <p>Được xây dựng bởi <strong>Edukid Tây Nguyên</strong> · Tauri v2 + React + Rust</p>
 </div>
@@ -10,28 +10,30 @@
 
 ## ✨ Tính năng
 
-| Tính năng | Mô tả |
-|-----------|-------|
-| 📷 Chụp toàn màn hình | Phím tắt `Cmd/Ctrl + Shift + 3` |
-| ✂️ Chụp vùng chọn | Phím tắt `Cmd/Ctrl + Shift + 2` |
+| Tính năng               | Mô tả                                              |
+| ----------------------- | -------------------------------------------------- |
+| 📷 Chụp toàn màn hình   | Phím tắt `Cmd/Ctrl + Shift + 3`                    |
+| ✂️ Chụp vùng chọn       | Phím tắt `Cmd/Ctrl + Shift + 2`                    |
 | 📋 Dán ảnh từ clipboard | Nhấn `Cmd/Ctrl + V` để dán và chỉnh sửa ảnh bất kỳ |
-| 🖼️ Nền tùy chỉnh | Gradient, solid color, hoặc ảnh nền tuỳ ý |
-| ✏️ Chỉnh sửa ảnh | Vẽ tự do, hình chữ nhật, mũi tên, text |
-| 🔄 Undo / Redo | Ctrl+Z / Ctrl+Y |
-| 💾 Lưu & Copy | Lưu file PNG hoặc copy vào clipboard |
-| 🖱️ Resize ảnh | Kéo góc ảnh để thay đổi kích thước |
-| 🖥️ Đa màn hình | Tự động nhận diện màn hình chứa con trỏ |
-| 🔔 System Tray | Chạy nền, gọi nhanh từ menu tray |
+| 🖼️ Nền tùy chỉnh        | Gradient, solid color, hoặc ảnh nền tuỳ ý          |
+| ✏️ Chỉnh sửa ảnh        | Vẽ tự do, hình chữ nhật, mũi tên, text             |
+| 🔄 Undo / Redo          | Ctrl+Z / Ctrl+Y                                    |
+| 💾 Lưu & Copy           | Lưu file PNG hoặc copy vào clipboard               |
+| 🖱️ Resize ảnh           | Kéo góc ảnh để thay đổi kích thước                 |
+| 🖥️ Đa màn hình          | Tự động nhận diện màn hình chứa con trỏ            |
+| 🔔 System Tray          | Chạy nền, gọi nhanh từ menu tray                   |
 
 ---
 
 ## 📋 Yêu cầu hệ thống
 
 ### macOS
+
 - macOS 11.0 (Big Sur) trở lên
 - Quyền **Screen Recording** (System Settings → Privacy & Security → Screen Recording)
 
 ### Windows
+
 - Windows 10 / 11 (x64)
 - Không cần cấp quyền đặc biệt
 
@@ -46,6 +48,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 Kiểm tra cài đặt:
+
 ```bash
 rustc --version   # ≥ 1.77
 ```
@@ -62,8 +65,8 @@ node --version   # ≥ 20
 
 ```bash
 git clone <repo-url>
-cd screenshot-tool/app-tauri
-npm install
+cd screenshot-tool
+yarn install
 ```
 
 ### Bước 4 — Chạy môi trường phát triển
@@ -90,6 +93,7 @@ yarn build
 ```
 
 Output sẽ nằm tại:
+
 ```
 src-tauri/target/release/bundle/macos/Edukids Screenshot.app
 src-tauri/target/release/bundle/dmg/Edukids Screenshot_1.0.0_aarch64.dmg
@@ -100,11 +104,13 @@ src-tauri/target/release/bundle/dmg/Edukids Screenshot_1.0.0_aarch64.dmg
 > ⚠️ File Windows **phải được build trên Windows**. Không thể cross-compile từ macOS.
 
 Trên máy Windows, chạy:
+
 ```bash
 npm run build
 ```
 
 Output:
+
 ```
 src-tauri/target/release/bundle/nsis/Edukids Screenshot_1.0.0_x64-setup.exe
 ```
@@ -118,7 +124,6 @@ Push code lên GitHub → CI workflow `.github/workflows/build-windows.yml` tự
 ## 🗂️ Cấu trúc dự án
 
 ```
-app-tauri/
 ├── src/                    # Frontend (React + TypeScript)
 │   ├── App.tsx             # Root component
 │   ├── components/
@@ -148,8 +153,8 @@ Mọi đóng góp đều được hoan nghênh! Dưới đây là quy trình:
 
 ```bash
 git clone https://github.com/<your-username>/screenshot-tool.git
-cd screenshot-tool/app-tauri
-npm install
+cd screenshot-tool
+yarn install
 ```
 
 ### 2. Tạo branch mới
@@ -192,13 +197,13 @@ Vào GitHub → **New Pull Request** → mô tả thay đổi và lý do.
 
 ### 📌 Quy ước commit
 
-| Prefix | Ý nghĩa |
-|--------|---------|
-| `feat:` | Tính năng mới |
-| `fix:` | Sửa lỗi |
-| `refactor:` | Tái cấu trúc code |
-| `docs:` | Cập nhật tài liệu |
-| `chore:` | CI/CD, config, build |
+| Prefix      | Ý nghĩa              |
+| ----------- | -------------------- |
+| `feat:`     | Tính năng mới        |
+| `fix:`      | Sửa lỗi              |
+| `refactor:` | Tái cấu trúc code    |
+| `docs:`     | Cập nhật tài liệu    |
+| `chore:`    | CI/CD, config, build |
 
 ---
 
@@ -212,3 +217,4 @@ Vào GitHub → **New Pull Request** → mô tả thay đổi và lý do.
 ## 📄 License
 
 MIT © 2025 Edukid Tây Nguyên
+claude --dangerously-skip-permissions

@@ -1,0 +1,47 @@
+--- src-tauri/src/tray.rs
++++ src-tauri/src/tray.rs
+@@ -4,7 +4,7 @@
+ use tauri::{
+     menu::{Menu, MenuItem},
+-    tray::{MouseButton, TrayIconEvent},
++    tray::{MouseButton, TrayIconEvent, TrayIconBuilder},
+     AppHandle, Emitter, Manager,
+ };
+ 
+@@ -54,12 +54,15 @@
+     )?;
+ 
+-    if let Some(tray) = app.tray_by_id("main") {
+-        tray.set_menu(Some(menu))?;
+-        tray.set_show_menu_on_left_click(true)?;
+-        tray.on_menu_event(|app, event| match event.id.as_ref() {
++    let tray = TrayIconBuilder::new()
++        .with_id("main")
++        .with_title("Screenshot Tool")
++        .with_menu(&menu)
++        .with_menu_on_left_click(true)
++        .build(app)?;
++
++    tray.on_menu_event(|app, event| match event.id.as_ref() {
+             "capture_region" => {
+                 if let Some(win) = app.get_webview_window("main") {
+                     win.show().ok();
+                     win.set_focus().ok();
+@@ -107,17 +110,16 @@
+             "quit" => app.exit(0),
+             _ => {}
+         });
+-        tray.on_tray_icon_event(|_tray, event| {
+-            // Left click on macOS → show_menu_on_left_click handles it
+-            let TrayIconEvent::Click {
+-                button: MouseButton::Left,
+-                ..
+-            } = event
+-            else {
+-                return;
+-            };
+-        });
+-    }
+ 
+     Ok(())
+ }

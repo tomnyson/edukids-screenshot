@@ -1,10 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
+import { computeLayout, PADDING, type CanvasLayout } from './canvasLayout';
 
 export type BackgroundOption =
   | { type: 'none' }
   | { type: 'solid'; color: string }
-  | { type: 'gradient'; stops: string[]; angle: number };
+  | { type: 'gradient'; stops: string[]; angle: number }
+  | { type: 'image'; dataUrl: string };
+
+export type AspectRatio = {
+  label: string;
+  value: [number, number] | null; // null = free / original
+};
+
+export const ASPECT_RATIOS: AspectRatio[] = [
+  { label: 'Gốc', value: null },
+  { label: '16:9', value: [16, 9] },
+  { label: '9:16', value: [9, 16] },
+  { label: '4:3', value: [4, 3] },
+  { label: '3:2', value: [3, 2] },
+  { label: '1:1', value: [1, 1] },
+  { label: '21:9', value: [21, 9] },
+];
 
 interface CanvasEditorProps {
   imageUrl: string;
@@ -50,12 +67,13 @@ function makeArrow(
   });
 }
 
-/** Draw the wallpaper background onto a canvas 2D context */
+/** Draw the wallpaper background into a canvas 2D context */
 function drawBackground(
   ctx: CanvasRenderingContext2D,
   bg: BackgroundOption,
   width: number,
-  height: number
+  height: number,
+  bgImage?: HTMLImageElement | null,
 ) {
   if (bg.type === 'none') {
     ctx.clearRect(0, 0, width, height);
@@ -66,24 +84,50 @@ function drawBackground(
     ctx.fillRect(0, 0, width, height);
     return;
   }
-  // gradient
-  const rad = (bg.angle * Math.PI) / 180;
-  const cx = width / 2;
-  const cy = height / 2;
-  const half = Math.sqrt(cx * cx + cy * cy);
-  const x0 = cx - Math.cos(rad) * half;
-  const y0 = cy - Math.sin(rad) * half;
-  const x1 = cx + Math.cos(rad) * half;
-  const y1 = cy + Math.sin(rad) * half;
-  const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-  bg.stops.forEach((color, i) => {
-    grad.addColorStop(i / (bg.stops.length - 1), color);
-  });
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
+  if (bg.type === 'image' && bgImage) {
+    const imgRatio = bgImage.naturalWidth / bgImage.naturalHeight;
+    const canvasRatio = width / height;
+    let sx = 0, sy = 0, sw = bgImage.naturalWidth, sh = bgImage.naturalHeight;
+    if (imgRatio > canvasRatio) {
+      sw = bgImage.naturalHeight * canvasRatio;
+      sx = (bgImage.naturalWidth - sw) / 2;
+    } else {
+      sh = bgImage.naturalWidth / canvasRatio;
+      sy = (bgImage.naturalHeight - sh) / 2;
+    }
+    ctx.drawImage(bgImage, sx, sy, sw, sh, 0, 0, width, height);
+    return;
+  }
+  if (bg.type === 'gradient') {
+    const rad = (bg.angle * Math.PI) / 180;
+    const cx = width / 2;
+    const cy = height / 2;
+    const half = Math.sqrt(cx * cx + cy * cy);
+    const x0 = cx - Math.cos(rad) * half;
+    const y0 = cy - Math.sin(rad) * half;
+    const x1 = cx + Math.cos(rad) * half;
+    const y1 = cy + Math.sin(rad) * half;
+    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+    bg.stops.forEach((color, i) => {
+      grad.addColorStop(i / (bg.stops.length - 1), color);
+    });
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+  }
 }
 
-const PADDING = 60; // px padding around screenshot when a bg is applied
+/** Load an image from a data URL */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// Custom property name to tag the screenshot object
+const SCREENSHOT_TAG = '__isScreenshot';
 
 export default function CanvasEditor({
   imageUrl, onReady, drawColor, drawSize, onDrawSizeChange, background,
@@ -108,6 +152,128 @@ export default function CanvasEditor({
     historyIndexRef.current = historyRef.current.length - 1;
   };
 
+  /** Find the screenshot FabricImage on the canvas */
+  const findScreenshot = (canvas: fabric.Canvas): fabric.FabricImage | null => {
+    return canvas.getObjects().find((o: any) => (o as any)[SCREENSHOT_TAG]) as fabric.FabricImage | null ?? null;
+  };
+
+  /** Toggle screenshot selectability based on tool */
+  const setScreenshotInteractive = (canvas: fabric.Canvas, interactive: boolean) => {
+    const ss = findScreenshot(canvas);
+    if (!ss) return;
+    ss.set({
+      selectable: interactive,
+      evented: interactive,
+      hasControls: interactive,
+      hasBorders: interactive,
+    });
+    if (!interactive) {
+      canvas.discardActiveObject();
+    }
+    canvas.renderAll();
+  };
+
+  const ratioRef = useRef<[number, number] | null>(null);
+  // Incremented per layout pass so a slow, stale backdrop build never wins
+  const layoutGenRef = useRef(0);
+
+  const viewportMax = () => ({
+    maxW: window.innerWidth  - 100,
+    maxH: window.innerHeight - 200,
+  });
+
+  /** Rebuild the backdrop image for the current canvas size + background */
+  const rebuildBackground = async (canvas: fabric.Canvas, bg: BackgroundOption) => {
+    const gen = ++layoutGenRef.current;
+    const canvasW = canvas.getWidth();
+    const canvasH = canvas.getHeight();
+    const offscreen = document.createElement('canvas');
+    offscreen.width  = canvasW;
+    offscreen.height = canvasH;
+    const offCtx = offscreen.getContext('2d')!;
+
+    let bgImage: HTMLImageElement | null = null;
+    if (bg.type === 'image') {
+      bgImage = await loadImage(bg.dataUrl).catch(() => null);
+    }
+    drawBackground(offCtx, bg, canvasW, canvasH, bgImage);
+    if (gen !== layoutGenRef.current) return; // superseded by a newer layout
+
+    if (bg.type === 'none') {
+      canvas.backgroundImage = undefined;
+      canvas.renderAll();
+      return;
+    }
+    const composite = await loadImage(offscreen.toDataURL('image/png'));
+    if (gen !== layoutGenRef.current) return; // superseded by a newer layout
+    canvas.backgroundImage = new fabric.FabricImage(composite, {
+      left: 0, top: 0, originX: 'left', originY: 'top',
+      scaleX: 1, scaleY: 1, selectable: false, evented: false,
+    });
+    canvas.renderAll();
+  };
+
+  /**
+   * Single source of truth for positioning: resize the canvas, place the
+   * screenshot, move annotations along with it, then redraw the backdrop.
+   */
+  const applyLayout = async (canvas: fabric.Canvas, bg: BackgroundOption) => {
+    const ss = findScreenshot(canvas);
+    if (!ss) return;
+    const el = (ss as any)._element ?? ss.getElement?.();
+    const imgW = el?.naturalWidth || ss.width;
+    const imgH = el?.naturalHeight || ss.height;
+
+    const pad = bg.type === 'none' ? 0 : PADDING;
+    const layout: CanvasLayout = computeLayout({
+      imgW, imgH, ...viewportMax(), pad, ratio: ratioRef.current,
+    });
+
+    // Move/scale annotations relative to the screenshot so they stay attached
+    const prevLeft  = ss.left ?? 0;
+    const prevTop   = ss.top ?? 0;
+    const prevScale = ss.scaleX || 1;
+    const k = layout.scale / prevScale;
+    canvas.getObjects().forEach((o: any) => {
+      if (o[SCREENSHOT_TAG]) return;
+      o.set({
+        left:   layout.left + ((o.left ?? 0) - prevLeft) * k,
+        top:    layout.top  + ((o.top  ?? 0) - prevTop)  * k,
+        scaleX: (o.scaleX ?? 1) * k,
+        scaleY: (o.scaleY ?? 1) * k,
+      });
+      o.setCoords();
+    });
+
+    canvas.setDimensions({ width: layout.canvasW, height: layout.canvasH });
+    ss.set({ left: layout.left, top: layout.top, scaleX: layout.scale, scaleY: layout.scale });
+    ss.setCoords();
+    canvas.renderAll();
+    await rebuildBackground(canvas, bg);
+  };
+
+  /** Create the screenshot object (not selectable by default) and lay it out */
+  const addScreenshot = async (canvas: fabric.Canvas, img: HTMLImageElement, bg: BackgroundOption) => {
+    const screenshotFi = new fabric.FabricImage(img, {
+      left: 0, top: 0,
+      originX: 'left', originY: 'top',
+      cornerColor: '#4facfe',
+      cornerStrokeColor: '#fff',
+      cornerSize: 10,
+      transparentCorners: false,
+      lockUniScaling: true,
+      selectable: false,
+      evented: false,
+      hasControls: false,
+      hasBorders: false,
+    });
+    (screenshotFi as any)[SCREENSHOT_TAG] = true;
+    canvas.add(screenshotFi);
+    canvas.sendObjectToBack(screenshotFi);
+    await applyLayout(canvas, bg);
+    saveHistory(canvas);
+  };
+
   // ── Canvas init ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -118,68 +284,11 @@ export default function CanvasEditor({
       enableRetinaScaling: false,
     });
     setFabricCanvas(canvas);
+    ratioRef.current = null;
 
-    const htmlImg  = new Image();
-    htmlImg.onload = () => {
-      const imgW = htmlImg.naturalWidth;
-      const imgH = htmlImg.naturalHeight;
-      const maxW = window.innerWidth  - 100;
-      const maxH = window.innerHeight - 200;
-      let scale  = 1;
-      if (imgW > maxW || imgH > maxH) scale = Math.min(maxW / imgW, maxH / imgH);
-
-      const hasBackground = bgRef.current.type !== 'none';
-      const pad = hasBackground ? PADDING : 0;
-      const canvasW = Math.round(imgW * scale) + pad * 2;
-      const canvasH = Math.round(imgH * scale) + pad * 2;
-
-      canvas.setDimensions({ width: canvasW, height: canvasH });
-
-      // Draw background + image into a composite image used as backgroundImage
-      const offscreen = document.createElement('canvas');
-      offscreen.width  = canvasW;
-      offscreen.height = canvasH;
-      const offCtx = offscreen.getContext('2d')!;
-
-      drawBackground(offCtx, bgRef.current, canvasW, canvasH);
-
-      if (hasBackground) {
-        // Rounded rect clip for the screenshot
-        const rx = 12 * scale;
-        offCtx.save();
-        offCtx.beginPath();
-        offCtx.roundRect(pad, pad, imgW * scale, imgH * scale, rx);
-        offCtx.clip();
-      }
-      offCtx.drawImage(htmlImg, pad, pad, imgW * scale, imgH * scale);
-      if (hasBackground) {
-        offCtx.restore();
-        // Subtle shadow — draw again for shadow effect via globalCompositeOperation
-        offCtx.save();
-        offCtx.shadowColor = 'rgba(0,0,0,0.35)';
-        offCtx.shadowBlur  = 24;
-        offCtx.shadowOffsetY = 8;
-        offCtx.globalCompositeOperation = 'destination-over';
-        offCtx.beginPath();
-        offCtx.roundRect(pad, pad, imgW * scale, imgH * scale, 12 * scale);
-        offCtx.fillStyle = '#000';
-        offCtx.fill();
-        offCtx.restore();
-      }
-
-      const compositeImg = new Image();
-      compositeImg.onload = () => {
-        const fi = new fabric.FabricImage(compositeImg, {
-          left: 0, top: 0, originX: 'left', originY: 'top',
-          scaleX: 1, scaleY: 1, selectable: false, evented: false,
-        });
-        canvas.backgroundImage = fi;
-        canvas.renderAll();
-        saveHistory(canvas);
-      };
-      compositeImg.src = offscreen.toDataURL('image/png');
-    };
-    htmlImg.src = imageUrl;
+    loadImage(imageUrl)
+      .then((img) => addScreenshot(canvas, img, bgRef.current))
+      .catch((err) => console.error('Failed to load screenshot into editor', err));
 
     canvas.on('object:modified', () => saveHistory(canvas));
     canvas.on('object:added',    () => saveHistory(canvas));
@@ -188,7 +297,9 @@ export default function CanvasEditor({
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const active = canvas.getActiveObject();
       if (!active || (active as any).isEditing) return;
-      const selected = canvas.getActiveObjects();
+      // Prevent deleting the screenshot
+      if ((active as any)[SCREENSHOT_TAG]) return;
+      const selected = canvas.getActiveObjects().filter((o: any) => !(o as any)[SCREENSHOT_TAG]);
       canvas.discardActiveObject();
       canvas.remove(...selected);
       saveHistory(canvas);
@@ -211,68 +322,11 @@ export default function CanvasEditor({
     };
   }, [imageUrl]);
 
-  // ── Re-render background when `background` prop changes ───────────────────
+  // ── Re-layout when `background` changes (padding + backdrop) ─────────────
   useEffect(() => {
     if (!fabricCanvas) return;
-    const canvas = fabricCanvas;
-
-    const htmlImg = new Image();
-    htmlImg.onload = () => {
-      const imgW = htmlImg.naturalWidth;
-      const imgH = htmlImg.naturalHeight;
-      const maxW = window.innerWidth  - 100;
-      const maxH = window.innerHeight - 200;
-      let scale  = 1;
-      if (imgW > maxW || imgH > maxH) scale = Math.min(maxW / imgW, maxH / imgH);
-
-      const hasBackground = background.type !== 'none';
-      const pad = hasBackground ? PADDING : 0;
-      const canvasW = Math.round(imgW * scale) + pad * 2;
-      const canvasH = Math.round(imgH * scale) + pad * 2;
-
-      canvas.setDimensions({ width: canvasW, height: canvasH });
-
-      const offscreen = document.createElement('canvas');
-      offscreen.width  = canvasW;
-      offscreen.height = canvasH;
-      const offCtx = offscreen.getContext('2d')!;
-
-      drawBackground(offCtx, background, canvasW, canvasH);
-
-      if (hasBackground) {
-        const rx = 12 * scale;
-        offCtx.save();
-        offCtx.beginPath();
-        offCtx.roundRect(pad, pad, imgW * scale, imgH * scale, rx);
-        offCtx.clip();
-      }
-      offCtx.drawImage(htmlImg, pad, pad, imgW * scale, imgH * scale);
-      if (hasBackground) {
-        offCtx.restore();
-        offCtx.save();
-        offCtx.shadowColor = 'rgba(0,0,0,0.35)';
-        offCtx.shadowBlur  = 24;
-        offCtx.shadowOffsetY = 8;
-        offCtx.globalCompositeOperation = 'destination-over';
-        offCtx.beginPath();
-        offCtx.roundRect(pad, pad, imgW * scale, imgH * scale, 12 * scale);
-        offCtx.fillStyle = '#000';
-        offCtx.fill();
-        offCtx.restore();
-      }
-
-      const compositeImg = new Image();
-      compositeImg.onload = () => {
-        const fi = new fabric.FabricImage(compositeImg, {
-          left: 0, top: 0, originX: 'left', originY: 'top',
-          scaleX: 1, scaleY: 1, selectable: false, evented: false,
-        });
-        canvas.backgroundImage = fi;
-        canvas.renderAll();
-      };
-      compositeImg.src = offscreen.toDataURL('image/png');
-    };
-    htmlImg.src = imageUrl;
+    applyLayout(fabricCanvas, background)
+      .catch((err) => console.error('Failed to apply background', err));
   }, [background, fabricCanvas]);
 
   // ── Sync brush color/size in real-time while in draw mode ─────────────────
@@ -292,8 +346,11 @@ export default function CanvasEditor({
     const isDraw = currentTool === 'draw';
     fabricCanvas.isDrawingMode = isDraw;
 
+    // Toggle screenshot interactivity based on tool
+    const isSelectMode = currentTool === 'select';
+    setScreenshotInteractive(fabricCanvas, isSelectMode);
+
     if (isDraw) {
-      // Fabric.js v6: freeDrawingBrush is NOT auto-created — must instantiate manually
       if (!fabricCanvas.freeDrawingBrush) {
         fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
       }
@@ -394,53 +451,6 @@ export default function CanvasEditor({
   useEffect(() => {
     if (!onReady || !fabricCanvas) return;
 
-    const reloadBackground = (canvas: fabric.Canvas) => {
-      const img  = new Image();
-      img.onload = () => {
-        const imgW = img.naturalWidth;
-        const imgH = img.naturalHeight;
-        const maxW = window.innerWidth  - 100;
-        const maxH = window.innerHeight - 200;
-        let scale  = 1;
-        if (imgW > maxW || imgH > maxH) scale = Math.min(maxW / imgW, maxH / imgH);
-
-        const hasBackground = bgRef.current.type !== 'none';
-        const pad = hasBackground ? PADDING : 0;
-        const canvasW = Math.round(imgW * scale) + pad * 2;
-        const canvasH = Math.round(imgH * scale) + pad * 2;
-
-        canvas.setDimensions({ width: canvasW, height: canvasH });
-
-        const offscreen = document.createElement('canvas');
-        offscreen.width  = canvasW;
-        offscreen.height = canvasH;
-        const offCtx = offscreen.getContext('2d')!;
-        drawBackground(offCtx, bgRef.current, canvasW, canvasH);
-
-        if (hasBackground) {
-          offCtx.save();
-          offCtx.beginPath();
-          offCtx.roundRect(pad, pad, imgW * scale, imgH * scale, 12 * scale);
-          offCtx.clip();
-        }
-        offCtx.drawImage(img, pad, pad, imgW * scale, imgH * scale);
-        if (hasBackground) offCtx.restore();
-
-        const ci = new Image();
-        ci.onload = () => {
-          const fi = new fabric.FabricImage(ci, {
-            left: 0, top: 0, originX: 'left', originY: 'top',
-            scaleX: 1, scaleY: 1, selectable: false, evented: false,
-          });
-          canvas.backgroundImage = fi;
-          canvas.renderAll();
-          saveHistory(canvas);
-        };
-        ci.src = offscreen.toDataURL('image/png');
-      };
-      img.src = imageUrl;
-    };
-
     onReady({
       setTool: (tool: string) => setCurrentTool(tool),
       undo: () => {
@@ -461,12 +471,20 @@ export default function CanvasEditor({
         fabricCanvas.clear();
         historyRef.current      = [];
         historyIndexRef.current = -1;
-        reloadBackground(fabricCanvas);
+        loadImage(imageUrl)
+          .then((img) => addScreenshot(fabricCanvas, img, bgRef.current))
+          .catch((err) => console.error('Failed to reload screenshot', err));
       },
       exportImage: () => {
         fabricCanvas.discardActiveObject();
         fabricCanvas.renderAll();
         return fabricCanvas.toDataURL({ format: 'png', quality: 1, multiplier: 1 });
+      },
+      /** Resize canvas to match a specific aspect ratio (null = original) */
+      resizeToAspectRatio: (ratio: [number, number] | null) => {
+        ratioRef.current = ratio;
+        applyLayout(fabricCanvas, bgRef.current)
+          .catch((err) => console.error('Failed to apply aspect ratio', err));
       },
     });
   }, [fabricCanvas, onReady, imageUrl]);

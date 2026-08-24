@@ -1,275 +1,292 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type EventCallback } from '@tauri-apps/api/event';
 import Toolbar from './components/Toolbar';
 import CanvasEditor, { type BackgroundOption } from './components/CanvasEditor';
 import PermissionGuide from './components/PermissionGuide';
 import OverlayEditor from './components/OverlayEditor';
-import { storeImage, fetchImage } from './idb';
+import RecordingBar from './components/RecordingBar';
+import FfmpegInstallModal from './components/FfmpegInstallModal';
+import RecordingPreview from './components/RecordingPreview';
+import RecordingLivePreview from './components/RecordingLivePreview';
+import RecordingScreenPicker, { type RecordingScreen } from './components/RecordingScreenPicker';
+import AppLogo from './components/AppLogo';
+import edukidsLogo from './assets/edukids-logo.png';
+import { fetchImage } from './idb';
 import './index.css';
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      getSources: () => Promise<Array<{ id: string; name: string }>>;
-      saveImage: (dataUrl: string, name: string) => Promise<boolean>;
-      copyImage: (dataUrl: string) => Promise<boolean>;
-      hideWindow: () => Promise<void>;
-      showWindow: () => Promise<void>;
-      startRegionCapture: (dataUrl: string) => Promise<void>;
-      closeOverlay: (dataUrl: string | null) => Promise<void>;
-      onInitOverlay: (cb: (dataUrl: string) => void) => void;
-      onRegionCaptured: (cb: (dataUrl: string) => void) => void;
-      onTriggerCaptureRegion: (cb: () => void) => void;
-      onTriggerCaptureFull: (cb: () => void) => void;
-    };
-  }
-}
-
-type AppState = 'idle' | 'no-electron' | 'no-permission' | 'has-image';
-
-/**
- * Captures the screen using getUserMedia with a desktop source ID.
- * This is the reliable approach on macOS 13+ (Ventura/Sonoma) — the old
- * desktopCapturer thumbnail approach fails with ad-hoc signed apps.
- *
- * Retina / HiDPI fix: Chromium's getUserMedia can deliver a 1x stream even
- * when the mandatory constraints request a 2x resolution, causing the
- * "1/4 corner" bug (the video element renders at 1x into a 2x canvas).
- * We fix this by:
- *   1. Attaching the video to a hidden off-screen DOM element so Chromium
- *      runs the full compositing / HiDPI decode pipeline.
- *   2. Waiting for multiple decoded frames (skip first 2) so the stream
- *      fully settles before we capture.
- *   3. Verifying the delivered videoWidth/videoHeight matches the expected
- *      native pixel dimensions before resolving.
- */
-async function captureWithGetUserMedia(sourceId: string): Promise<string> {
-  const nativeW = Math.round(window.screen.width * window.devicePixelRatio);
-  const nativeH = Math.round(window.screen.height * window.devicePixelRatio);
-
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: {
-      // @ts-ignore — chromeMediaSource / mandatory are Electron-specific extensions
-      mandatory: {
-        chromeMediaSource: 'desktop',
-        chromeMediaSourceId: sourceId,
-        minWidth: nativeW,
-        minHeight: nativeH,
-        maxWidth: nativeW,
-        maxHeight: nativeH,
-      },
-    },
-  });
-
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.muted = true;
-    video.playsInline = true;
-    video.srcObject = stream;
-
-    // Attach to DOM so Chromium runs the full HiDPI compositing pipeline.
-    // The container is off-screen (not display:none, which can suppress decode).
-    const container = document.createElement('div');
-    container.style.cssText =
-      'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;pointer-events:none;';
-    container.appendChild(video);
-    document.body.appendChild(container);
-
-    const cleanup = () => {
-      stream.getTracks().forEach(t => t.stop());
-      video.srcObject = null;
-      try { document.body.removeChild(container); } catch (_) {}
-    };
-
-    video.play().then(() => {
-      let captured = false;
-      let frameCount = 0;
-
-      const doCapture = () => {
-        if (captured) return;
-        captured = true;
-        try {
-          const w = video.videoWidth;
-          const h = video.videoHeight;
-
-          // Warn in console if dimensions don't match native — helps debugging.
-          if (w !== nativeW || h !== nativeH) {
-            console.warn(
-              `[screenshot] videoWidth=${w}×${h} expected ${nativeW}×${nativeH}. ` +
-              'Stream may not be at native Retina resolution.'
-            );
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('No canvas context');
-          ctx.drawImage(video, 0, 0);
-          cleanup();
-          resolve(canvas.toDataURL('image/png'));
-        } catch (e) {
-          cleanup();
-          reject(e);
-        }
-      };
-
-      const onFrame = () => {
-        if (captured) return;
-        frameCount++;
-        // Skip the first 2 frames — stream often hasn't settled to native
-        // resolution yet. Capture on the 3rd frame and beyond.
-        if (frameCount >= 3) {
-          doCapture();
-        } else if ('requestVideoFrameCallback' in video) {
-          (video as any).requestVideoFrameCallback(onFrame);
-        }
-      };
-
-      if ('requestVideoFrameCallback' in video) {
-        (video as any).requestVideoFrameCallback(onFrame);
-      }
-
-      // Fallback: if requestVideoFrameCallback never fires (e.g. browser
-      // doesn't support it), capture after a generous delay to let the
-      // stream settle.
-      setTimeout(() => {
-        if (!captured && video.videoWidth > 0 && video.videoHeight > 0) {
-          doCapture();
-        }
-      }, 600);
-
-    }).catch(err => {
-      cleanup();
-      reject(err);
-    });
-  });
-}
+type AppState = 'idle' | 'no-permission' | 'has-image';
 
 function MainApp() {
   const [image, setImage] = useState<string | null>(null);
   const [editorRef, setEditorRef] = useState<any>(null);
   const [appState, setAppState] = useState<AppState>('idle');
+  const [captureError, setCaptureError] = useState<string | null>(null);
   const [drawColor, setDrawColor] = useState<string>('#ef4444');
-  const [drawSize,  setDrawSize]  = useState<number>(4);
+  const [drawSize, setDrawSize] = useState<number>(4);
   const [background, setBackground] = useState<BackgroundOption>({
     type: 'gradient',
     stops: ['#667eea', '#764ba2'],
     angle: 135,
   });
+  const [showAbout, setShowAbout] = useState(false);
 
-  useEffect(() => {
-    if (window.electronAPI?.onRegionCaptured) {
-      window.electronAPI.onRegionCaptured(async (url: string) => {
-        if (url === 'use-idb') {
-          try {
-            url = await fetchImage();
-          } catch (err) {
-            console.error('Failed to load cropped image from DB', err);
-            return;
-          }
-        }
-        setImage(url);
+  // ── Recording state ──
+  const [isRecording, setIsRecording] = useState(false);
+  const isRecordingRef = useRef(false);
+  const [recordedFilePath, setRecordedFilePath] = useState<string | null>(null);
+  const [ffmpegMissing, setFfmpegMissing] = useState(false);
+  const [recordingScreens, setRecordingScreens] = useState<RecordingScreen[] | null>(null);
+
+  // captureFlow defined before useEffect so the listener closures can call it
+  const captureFlowRef = useRef<((isRegion: boolean) => Promise<void>) | undefined>(undefined);
+  const recordFlowRef = useRef<((isRegion: boolean) => Promise<void>) | undefined>(undefined);
+  const stopRecordRef = useRef<(() => Promise<void>) | undefined>(undefined);
+
+  const setRecordingActive = (active: boolean) => {
+    isRecordingRef.current = active;
+    setIsRecording(active);
+  };
+
+  const captureFlow = async (isRegion: boolean) => {
+    try {
+      await invoke('hide_window');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      const dataUrl = await invoke<string>('get_screen_capture');
+
+      if (isRegion) {
+        // Pass full data URL directly to Rust — crop_overlay_selection reads from OverlayState
+        await invoke('start_region_capture', { dataUrl });
+      } else {
+        setImage(dataUrl);
         setAppState('has-image');
-      });
+        setCaptureError(null);
+        await invoke('show_window');
+      }
+    } catch (err: any) {
+      console.error('Capture failed:', err);
+      setCaptureError(err?.message || String(err));
+      setAppState('no-permission');
+      await invoke('show_window').catch(() => {});
+    }
+  };
+
+  const startFullRecording = async (screenIndex: string) => {
+    try {
+      await invoke('hide_window');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await invoke('start_recording_full', { screenIndex });
+      setRecordingActive(true);
+      await invoke('show_window');
+    } catch (err: any) {
+      console.error('Start recording failed:', err);
+      await invoke('show_window').catch(() => {});
+    }
+  };
+
+  // ── Recording flows ──
+  const recordFlow = async (isRegion: boolean) => {
+    // Check FFmpeg first
+    const hasFFmpeg = await invoke<boolean>('check_ffmpeg_installed');
+    if (!hasFFmpeg) {
+      setFfmpegMissing(true);
+      return;
     }
 
-    // Global shortcuts: Cmd+Shift+2 → region, Cmd+Shift+3 → full
-    window.electronAPI?.onTriggerCaptureRegion?.(() => captureFlow(true));
-    window.electronAPI?.onTriggerCaptureFull?.(() => captureFlow(false));
+    if (isRegion) {
+      // For region recording: capture screen first for overlay, then user selects region
+      try {
+        await invoke('hide_window');
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        const dataUrl = await invoke<string>('get_screen_capture');
+        // Start overlay in "record" mode
+        await invoke('start_region_capture', { dataUrl, mode: 'record' });
+      } catch (err: any) {
+        console.error('Record region capture failed:', err);
+        await invoke('show_window').catch(() => {});
+      }
+    } else {
+      try {
+        const screens = await invoke<RecordingScreen[]>('list_recording_screens');
+        if (screens.length === 0) {
+          throw new Error('Không tìm thấy màn hình để quay');
+        }
+        setRecordingScreens(screens);
+        await invoke('show_window');
+      } catch (err: any) {
+        console.error('List recording screens failed:', err);
+        await invoke('show_window').catch(() => {});
+      }
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      const filePath = await invoke<string>('stop_recording');
+      setRecordingActive(false);
+      setRecordedFilePath(filePath);
+      await invoke('show_window').catch(() => {});
+    } catch (err: any) {
+      console.error('Stop recording failed:', err);
+      setRecordingActive(false);
+    }
+  };
+
+  captureFlowRef.current = captureFlow;
+  recordFlowRef.current = recordFlow;
+  stopRecordRef.current = stopRecording;
+
+  // On startup, actively request Screen Recording permission.
+  useEffect(() => {
+    invoke<boolean>('request_screen_recording_permission').then(granted => {
+      if (!granted) {
+        setCaptureError('macOS Screen Recording permission was not granted. Please enable it in System Settings → Privacy & Security → Screen Recording, then restart the app.');
+        setAppState('no-permission');
+      }
+    }).catch(() => {
+      invoke<boolean>('check_screen_recording_permission').then(ok => {
+        if (!ok) {
+          setCaptureError('macOS Screen Recording permission is not granted. Please enable in System Settings.');
+          setAppState('no-permission');
+        }
+      }).catch(() => {});
+    });
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    const unlistens: Array<() => void> = [];
+
+    const register = async <T,>(eventName: string, handler: EventCallback<T>) => {
+      const unlisten = await listen<T>(eventName, handler);
+      if (disposed) {
+        unlisten();
+      } else {
+        unlistens.push(unlisten);
+      }
+    };
+
+    const setupListeners = async () => {
+      // Region captured event (from overlay window via Rust)
+      await register<string>('region-captured', async (event) => {
+          let url = event.payload;
+          if (url === 'use-idb') {
+            try { url = await fetchImage(); } catch (err) {
+              console.error('Failed to load cropped image from DB', err);
+              return;
+            }
+          }
+          setImage(url);
+          setAppState('has-image');
+        });
+
+      // Region-record: user selected region in overlay, now start recording
+      await register<{ x: number; y: number; width: number; height: number }>(
+          'region-record-start',
+          async (event) => {
+              const { x, y, width, height } = event.payload;
+              try {
+                await invoke('start_recording_region', { x, y, width, height });
+              setRecordingActive(true);
+              await invoke('show_window').catch(() => {});
+            } catch (err: any) {
+              console.error('Region recording start failed:', err);
+              await invoke('show_window').catch(() => {});
+            }
+          },
+        );
+
+      // Global shortcut events emitted by Rust backend
+      await register('trigger-capture-region', () => captureFlowRef.current?.(true)
+      );
+      await register('trigger-capture-full', () => captureFlowRef.current?.(false)
+      );
+      await register('trigger-record-region', () => {
+          if (isRecordingRef.current) {
+            stopRecordRef.current?.();
+          } else {
+            recordFlowRef.current?.(true);
+          }
+        }
+      );
+      await register('trigger-record-full', () => {
+          if (isRecordingRef.current) {
+            stopRecordRef.current?.();
+          } else {
+            recordFlowRef.current?.(false);
+          }
+        }
+      );
+      await register('trigger-stop-recording', () => stopRecordRef.current?.()
+      );
+      await register('show-about', () => setShowAbout(true)
+      );
+    };
+
+    // Clipboard paste → load image directly into editor
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (!blob) continue;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            setImage(dataUrl);
+            setAppState('has-image');
+            setCaptureError(null);
+            invoke('show_window').catch(() => {});
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('paste', onPaste);
+    void setupListeners().catch((error) => {
+      console.error('Failed to set up app listeners:', error);
+    });
+    return () => {
+      disposed = true;
+      unlistens.splice(0).forEach((unlisten) => unlisten());
+      window.removeEventListener('paste', onPaste);
+    };
   }, []);
 
   const handleCaptureRegion = async () => captureFlow(true);
   const handleCaptureFull = async () => captureFlow(false);
-
-  const captureFlow = async (isRegion: boolean) => {
-    if (!window.electronAPI) {
-      setAppState('no-electron');
-      return;
-    }
-
-    const sources = await window.electronAPI.getSources();
-    if (sources.length === 0) {
-      // No sources = permission denied or macOS blocked access
-      setAppState('no-permission');
-      // Show window so user can see the permission guide (app may be running in tray)
-      await window.electronAPI.showWindow?.();
-      return;
-    }
-
-    try {
-      // Hide the window so it doesn't appear in the screenshot
-      if (window.electronAPI.hideWindow) {
-        await window.electronAPI.hideWindow();
-        // Wait for macOS window hide animation to finish and capture to settle
-        await new Promise(resolve => setTimeout(resolve, 400));
-      }
-
-      // Add a hard timeout to the capture process so the window always comes back!
-      const capturePromise = captureWithGetUserMedia(sources[0].id);
-      const timeoutPromise = new Promise<string>((_, reject) => 
-        setTimeout(() => reject(new Error('Capture timed out')), 5000)
-      );
-      
-      const dataUrl = await Promise.race([capturePromise, timeoutPromise]);
-      
-      if (isRegion) {
-        if (window.electronAPI.startRegionCapture) {
-          try {
-            await storeImage(dataUrl);
-            await window.electronAPI.startRegionCapture('use-idb');
-          } catch (e) {
-            console.error('Failed to store image or start IPC:', e);
-            throw e;
-          }
-        }
-      } else {
-        setImage(dataUrl);
-        setAppState('has-image');
-        if (window.electronAPI.showWindow) {
-          await window.electronAPI.showWindow();
-        }
-      }
-    } catch (err: any) {
-      console.error('Capture failed:', err);
-      // Give a highly visible alert if capture process fails inside App.tsx
-      if (err instanceof Error && err.message !== 'Capture timed out') {
-        alert('Lỗi khi chụp màn hình: ' + err.message);
-      }
-      setAppState('no-permission');
-      if (window.electronAPI?.showWindow) {
-        await window.electronAPI.showWindow();
-      }
-    }
-  };
+  const handleRecordRegion = async () => recordFlow(true);
+  const handleRecordFull = async () => recordFlow(false);
 
   const handleSave = async () => {
     if (!editorRef || !image) return;
     const dataUrl = editorRef.exportImage();
     if (!dataUrl) return;
     const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
-    if (window.electronAPI) {
-      await window.electronAPI.saveImage(dataUrl, `Screenshot-${dateStr}.png`);
-    } else {
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `Screenshot-${dateStr}.png`;
-      a.click();
+    try {
+      await invoke('save_image', { dataUrl, defaultName: `Screenshot-${dateStr}.png` });
+    } catch (err) {
+      console.error('Save failed:', err);
     }
   };
 
   const handleCopy = async () => {
     if (!editorRef || !image) return;
     const dataUrl = editorRef.exportImage();
-    if (dataUrl && window.electronAPI) {
-      await window.electronAPI.copyImage(dataUrl);
+    if (dataUrl) {
+      await invoke('copy_image', { dataUrl });
     }
   };
 
-  if (appState === 'no-electron' || appState === 'no-permission') {
+  if (appState === 'no-permission') {
     return (
       <PermissionGuide
-        reason={appState}
+        errorMessage={captureError}
         onRetry={() => { setAppState('idle'); handleCaptureRegion(); }}
       />
     );
@@ -277,26 +294,141 @@ function MainApp() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white overflow-hidden">
-      <div className="h-8 drag-region w-full absolute top-0 left-0 bg-transparent z-50" />
-      <Toolbar
-        onCaptureRegion={handleCaptureRegion}
-        onCaptureFull={handleCaptureFull}
-        onSave={handleSave}
-        onCopy={handleCopy}
-        onToolSelect={(tool) => editorRef?.setTool(tool)}
-        onUndo={() => editorRef?.undo()}
-        onRedo={() => editorRef?.redo()}
-        onClear={() => editorRef?.clearAll()}
-        hasImage={!!image}
-        drawColor={drawColor}
-        drawSize={drawSize}
-        onColorChange={setDrawColor}
-        onSizeChange={setDrawSize}
-        background={background}
-        onBgChange={setBackground}
-      />
+      {/* ── macOS-style titlebar ─────────────────────────────────────── */}
+      <div
+        className="flex items-center h-8 px-3 gap-2 bg-gray-900 border-b border-gray-800 z-50 flex-shrink-0"
+        style={{ WebkitAppRegion: 'drag' } as any}
+      >
+        {/* Traffic light buttons */}
+        <div
+          className="flex items-center gap-1.5"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+        >
+          {/* Red — Close */}
+          <button
+            onClick={() => invoke('close_window')}
+            title="Close"
+            className="w-3 h-3 rounded-full bg-[#ff5f57] hover:bg-[#ff3b30] border border-[#e0443e]/60 transition-colors cursor-pointer flex items-center justify-center group"
+          >
+            <span className="opacity-0 group-hover:opacity-100 text-[#820005] leading-none" style={{ fontSize: 7, lineHeight: 1 }}>✕</span>
+          </button>
+          {/* Yellow — Minimize */}
+          <button
+            onClick={() => invoke('minimize_window')}
+            title="Minimise"
+            className="w-3 h-3 rounded-full bg-[#febc2e] hover:bg-[#ffb41a] border border-[#d79200]/60 transition-colors cursor-pointer flex items-center justify-center group"
+          >
+            <span className="opacity-0 group-hover:opacity-100 text-[#985700] leading-none" style={{ fontSize: 9, lineHeight: 1 }}>−</span>
+          </button>
+          {/* Green — Fullscreen */}
+          <button
+            onClick={() => invoke('toggle_fullscreen')}
+            title="Fullscreen"
+            className="w-3 h-3 rounded-full bg-[#28c840] hover:bg-[#1aad2b] border border-[#14a422]/60 transition-colors cursor-pointer flex items-center justify-center group"
+          >
+            <span className="opacity-0 group-hover:opacity-100 text-[#006401] leading-none" style={{ fontSize: 7, lineHeight: 1 }}>⤢</span>
+          </button>
+        </div>
+        {/* Drag area fills the rest of the title bar */}
+        <div className="flex-1" />
+        {/* About button */}
+        <div style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <button
+            onClick={() => setShowAbout(true)}
+            title="About"
+            className="text-gray-400 hover:text-white transition-colors cursor-pointer text-xs px-1.5"
+          >
+            ℹ️
+          </button>
+        </div>
+      </div>
+
+      {/* About Modal */}
+      {showAbout && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowAbout(false)}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img src={edukidsLogo} alt="Edukids Logo" className="w-20 h-20 mx-auto mb-3 object-contain" />
+            <h2 className="text-lg font-bold text-white mb-1">Edukids Screenshot</h2>
+            <p className="text-gray-400 text-sm mb-4">Version 1.0.0</p>
+            <div className="border-t border-gray-700 pt-4 space-y-1">
+              <p className="text-gray-300 text-sm font-medium">Tác giả</p>
+              <p className="text-white font-semibold">Lê Hồng Sơn</p>
+              <a
+                href="mailto:tabletkindfire@gmail.com"
+                className="text-blue-400 hover:text-blue-300 text-sm transition-colors"
+              >
+                tabletkindfire@gmail.com
+              </a>
+            </div>
+            <button
+              onClick={() => setShowAbout(false)}
+              className="mt-5 px-5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors cursor-pointer"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FFmpeg missing modal */}
+      {ffmpegMissing && (
+        <FfmpegInstallModal onClose={() => setFfmpegMissing(false)} />
+      )}
+
+      {/* Recording preview modal */}
+      {recordedFilePath && (
+        <RecordingPreview
+          filePath={recordedFilePath}
+          onClose={() => setRecordedFilePath(null)}
+        />
+      )}
+
+      {recordingScreens && (
+        <RecordingScreenPicker
+          screens={recordingScreens}
+          onSelect={(screen) => {
+            setRecordingScreens(null);
+            void startFullRecording(screen.deviceIndex);
+          }}
+          onCancel={() => setRecordingScreens(null)}
+        />
+      )}
+
+      {/* Show RecordingBar when recording, otherwise show Toolbar */}
+      {isRecording ? (
+        <RecordingBar onStop={() => stopRecording()} />
+      ) : (
+        <Toolbar
+          onCaptureRegion={handleCaptureRegion}
+          onCaptureFull={handleCaptureFull}
+          onRecordRegion={handleRecordRegion}
+          onRecordFull={handleRecordFull}
+          onSave={handleSave}
+          onCopy={handleCopy}
+          onToolSelect={(tool) => editorRef?.setTool(tool)}
+          onUndo={() => editorRef?.undo()}
+          onRedo={() => editorRef?.redo()}
+          onClear={() => editorRef?.clearAll()}
+          hasImage={!!image}
+          drawColor={drawColor}
+          drawSize={drawSize}
+          onColorChange={setDrawColor}
+          onSizeChange={setDrawSize}
+          background={background}
+          onBgChange={setBackground}
+          onAspectRatio={(ratio) => editorRef?.resizeToAspectRatio(ratio)}
+        />
+      )}
       <div className="flex-1 bg-gray-900 flex overflow-auto p-4 pt-8">
-        {image ? (
+        {isRecording ? (
+          <RecordingLivePreview />
+        ) : image ? (
           <div className="m-auto">
             <CanvasEditor
               imageUrl={image}
@@ -320,11 +452,12 @@ function MainApp() {
 function EmptyState({ onCaptureRegion, onCaptureFull }: { onCaptureRegion: () => void, onCaptureFull: () => void }) {
   return (
     <div className="text-center flex flex-col items-center gap-4">
-      <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center border border-gray-700">
-        <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
+      <div className="w-24 h-24 rounded-[28px] bg-slate-900 flex items-center justify-center border border-cyan-950 shadow-[0_24px_60px_rgba(7,18,32,0.45)]">
+        <AppLogo size={68} />
+      </div>
+      <div className="text-center space-y-1">
+        <div className="text-white font-semibold tracking-tight">Screenshot Tool</div>
+        <div className="text-cyan-300/80 text-xs uppercase tracking-[0.24em]">Capture Better</div>
       </div>
       <p className="text-gray-400 text-sm">Chưa có ảnh nào. Bắt đầu bằng cách chụp màn hình.</p>
       <div className="flex gap-4 mt-2">

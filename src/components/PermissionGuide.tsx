@@ -1,65 +1,87 @@
-import { Monitor, Shield, ChevronRight, RefreshCw } from 'lucide-react';
+import { Monitor, RefreshCw } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import AppLogo from './AppLogo';
 
 interface PermissionGuideProps {
-  reason: 'no-electron' | 'no-permission';
+  errorMessage?: string | null;
   onRetry: () => void;
 }
 
-export default function PermissionGuide({ reason, onRetry }: PermissionGuideProps) {
-  const isElectronMissing = reason === 'no-electron';
+const isDev = import.meta.env.DEV;
+
+export default function PermissionGuide({ errorMessage, onRetry }: PermissionGuideProps) {
+  const handleOpenSettings = async () => {
+    try {
+      await invoke('open_screen_recording_settings');
+    } catch (error) {
+      console.error('Failed to open Screen Recording settings', error);
+    }
+  };
 
   return (
     <div className="h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-8">
       {/* Icon */}
-      <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-6 ${
-        isElectronMissing ? 'bg-blue-900/40 border border-blue-700' : 'bg-amber-900/40 border border-amber-700'
-      }`}>
-        {isElectronMissing 
-          ? <Monitor className="w-10 h-10 text-blue-400" />
-          : <Shield className="w-10 h-10 text-amber-400" />
-        }
+      <div className="w-24 h-24 rounded-[28px] bg-slate-900 border border-cyan-900/60 flex items-center justify-center mb-6 shadow-[0_24px_60px_rgba(7,18,32,0.45)]">
+        <AppLogo size={64} />
       </div>
 
       {/* Title */}
       <h1 className="text-2xl font-semibold text-white mb-2">
-        {isElectronMissing ? 'Cần chạy dưới dạng Desktop App' : 'Cần cấp quyền Screen Recording'}
+        Cần cấp quyền Screen Recording
       </h1>
       <p className="text-gray-400 text-sm text-center max-w-sm mb-8">
-        {isElectronMissing
-          ? 'Chức năng chụp màn hình chỉ hoạt động khi mở app bằng file .dmg hoặc lệnh yarn dev trong terminal.'
-          : 'macOS yêu cầu cấp quyền Screen Recording trước khi ứng dụng có thể chụp màn hình.'}
+        macOS yêu cầu cấp quyền Screen Recording trước khi ứng dụng có thể chụp màn hình.
       </p>
+
+      {isDev && (
+        <div className="w-full max-w-md bg-amber-950/50 border border-amber-800 rounded-2xl p-4 mb-4">
+          <p className="text-amber-200 text-sm leading-relaxed">
+            Bạn đang chạy bằng <code>yarn dev</code>. Trên macOS, đôi khi cần cấp quyền cho
+            <span className="font-semibold"> Terminal</span> hoặc app host đang chạy Tauri, không chỉ riêng
+            <span className="font-semibold"> Screenshot Tool</span>.
+          </p>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 p-4 mb-4">
+          <p className="text-gray-400 text-xs uppercase tracking-wide mb-2">Chi tiết lỗi</p>
+          <p className="text-red-300 text-sm break-words">{errorMessage}</p>
+        </div>
+      )}
 
       {/* Steps */}
       <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden mb-6">
-        {isElectronMissing ? (
-          <>
-            <Step num={1} text='Đóng trình duyệt web này lại.' />
-            <Step num={2} text='Mở Terminal và cd vào thư mục dự án.' />
-            <Step num={3} text='Chạy lệnh: yarn dev' />
-            <Step num={4} text='Hoặc cài file .dmg từ thư mục dist/' last />
-          </>
-        ) : (
-          <>
-            <Step num={1} text='Mở System Settings (⌘ + Space → "System Settings").' />
-            <Step num={2} text='Chọn mục Privacy & Security ở thanh bên trái.' />
-            <Step num={3} text='Cuộn xuống và chọn "Screen & System Audio Recording".' />
-            <Step num={4} text='Bật toggle cho ứng dụng "Screenshot Tool".' />
-            <Step num={5} text='⚠️ Quan trọng: Quit app (⌘Q) và mở lại — macOS yêu cầu restart để quyền có hiệu lực!' last />
-          </>
-        )}
+        <Step num={1} text='Mở System Settings (⌘ + Space → "System Settings").' />
+        <Step num={2} text='Chọn mục Privacy & Security ở thanh bên trái.' />
+        <Step num={3} text='Cuộn xuống và chọn "Screen & System Audio Recording".' />
+        <Step
+          num={4}
+          text={
+            isDev
+              ? 'Bật toggle cho "Screenshot Tool" và cả "Terminal" (hoặc iTerm / app host đang chạy yarn dev).'
+              : 'Bật toggle cho ứng dụng "Screenshot Tool".'
+          }
+        />
+        <Step num={5} text='⚠️ Quan trọng: Quit app hoàn toàn và mở lại. Nếu bạn vừa bật Terminal, hãy restart cả Terminal.' last />
       </div>
 
-      {/* Retry button (only for permission issue) */}
-      {!isElectronMissing && (
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleOpenSettings}
+          className="flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
+        >
+          <Monitor size={16} />
+          Mở Settings
+        </button>
         <button
           onClick={onRetry}
           className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
         >
           <RefreshCw size={16} />
-          Thử lại sau khi cấp quyền
+          Thử lại
         </button>
-      )}
+      </div>
     </div>
   );
 }

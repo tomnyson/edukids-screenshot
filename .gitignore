@@ -17,11 +17,8 @@ dist-ssr/
 *.local
 
 # ── Tauri build artifacts ──────────────────────────────────────────
-app-tauri/src-tauri/target/
-app-tauri/node_modules/
-app-tauri/dist/
-app-tauri/src-tauri/target/release/
-app-tauri/src-tauri/target/debug/
+src-tauri/target/
+src-tauri/binaries/
 
 # ── Electron (legacy) build artifacts ─────────────────────────────
 dist-electron/
@@ -70,6 +67,9 @@ Desktop.ini
 
 # ── AI agent / tooling ─────────────────────────────────────────────
 .agent/
+.agents/
+.claude/
+.omx/
 .cursor/
 .superdesign/
 .windsurfrules
