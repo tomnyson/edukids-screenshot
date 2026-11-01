@@ -187,6 +187,40 @@ try {
     const size = file && existsSync(file) ? statSync(file).size : 0;
     record('full-screen recording creates a video', start.value?.ok && stop.value?.ok && size > 0,
       start.value?.err ?? stop.value?.err ?? `${file} (${size} bytes)`);
+
+    // 9b/9c. Video editing: export trimmed+sped-up+muted MP4 and a GIF.
+    if (size > 0) {
+      const ffprobe = [path.join(path.dirname(exe), 'ffmpeg.exe'), path.join(process.env.LOCALAPPDATA ?? '', 'Edukids Screenshot', 'ffmpeg.exe')]
+        .find((p) => existsSync(p));
+      const probe = (f) => {
+        try { execFileSync(ffprobe, ['-hide_banner', '-i', f], { stdio: 'pipe' }); } catch (e) { return String(e.stderr ?? ''); }
+        return '';
+      };
+      const durationOf = (info) => {
+        const m = /Duration: (\d+):(\d+):([\d.]+)/.exec(info);
+        return m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : NaN;
+      };
+      const tmp = process.env.TEMP ?? path.dirname(file);
+      const mp4 = path.join(tmp, `edukids-smoke-export-${Date.now()}.mp4`);
+      const gif = path.join(tmp, `edukids-smoke-export-${Date.now()}.gif`);
+
+      const ex1 = await main.evaluate(invokeExpr('export_recording', {
+        sourcePath: file, destPath: mp4, options: { start: 0.5, end: 2.5, speed: 2, mute: true, format: 'mp4' },
+      }, 30000), 40000);
+      const info1 = existsSync(mp4) ? probe(mp4) : '';
+      const d1 = durationOf(info1);
+      record('export MP4 (trim 0.5–2.5s, 2x, muted) ≈ 1s, no audio',
+        ex1.value?.ok && Math.abs(d1 - 1) < 0.3 && !/Audio:/.test(info1),
+        ex1.value?.err ?? `duration=${d1.toFixed?.(2)}s audio=${/Audio:/.test(info1)}`);
+
+      const ex2 = await main.evaluate(invokeExpr('export_recording', {
+        sourcePath: file, destPath: gif, options: { start: 0, end: 2, speed: 1, mute: false, format: 'gif' },
+      }, 60000), 70000);
+      const gifOk = existsSync(gif) && statSync(gif).size > 0 && /Video: gif/.test(probe(gif));
+      record('export GIF', ex2.value?.ok && gifOk, ex2.value?.err ?? `${existsSync(gif) ? statSync(gif).size : 0} bytes`);
+
+      for (const f of [mp4, gif]) { try { (await import('node:fs')).unlinkSync(f); } catch {} }
+    }
     if (file) await main.evaluate(invokeExpr('discard_recording', { sourcePath: file }));
   }
 

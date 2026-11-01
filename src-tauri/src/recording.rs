@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// Build a Command that never flashes a console window on Windows
 /// (release builds run without a console, so children would get their own).
-fn new_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
+pub(crate) fn new_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
     #[allow(unused_mut)]
     let mut cmd = Command::new(program);
     #[cfg(target_os = "windows")]
@@ -573,7 +573,7 @@ const KNOWN_FFMPEG_PATHS: &[&str] = &[
     "ffmpeg.exe",                                 // Windows local directory
 ];
 
-fn get_ffmpeg_path(app: &AppHandle) -> Option<String> {
+pub(crate) fn get_ffmpeg_path(app: &AppHandle) -> Option<String> {
     if let Ok(data_dir) = app.path().app_local_data_dir() {
         let local_exe = data_dir.join("ffmpeg.exe");
         if local_exe.exists() {

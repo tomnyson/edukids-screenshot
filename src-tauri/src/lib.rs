@@ -25,6 +25,7 @@ mod commands;
 mod recording;
 mod shortcuts;
 mod tray;
+mod video_edit;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,6 +33,7 @@ pub fn run() {
         .manage(OverlayState(Mutex::new(OverlayCaptureState::default())))
         .manage(recording::RecordingState::default())
         .manage(shortcuts::ShortcutsState::default())
+        .manage(video_edit::ExportState::default())
         // Must be the first plugin: a second launch exits immediately and
         // instead brings the already-running instance's window to the front
         // (prevents duplicate tray icons / global-shortcut conflicts).
@@ -101,6 +103,8 @@ pub fn run() {
             commands::close_overlay,
             commands::get_overlay_mode,
             // Recording commands
+            video_edit::export_recording,
+            video_edit::cancel_export,
             shortcuts::get_shortcut_labels,
             shortcuts::get_shortcut_settings,
             shortcuts::set_shortcut,
