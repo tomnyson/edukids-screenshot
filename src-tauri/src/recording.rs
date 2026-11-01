@@ -832,7 +832,7 @@ pub fn start_recording_full(app: AppHandle, screen_index: Option<String>) -> Res
 #[cfg(test)]
 mod tests {
     use super::{
-        build_recording_args, jpeg_frame_end, parse_avfoundation_screens,
+        build_recording_args, jpeg_frame_end, new_command, parse_avfoundation_screens,
         select_avfoundation_screen, stop_child_gracefully, wait_for_recording_start, RecorderInput,
     };
 

@@ -31,7 +31,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState(Mutex::new(OverlayCaptureState::default())))
         .manage(recording::RecordingState::default())
-        .manage(shortcuts::ShortcutLabels::default())
+        .manage(shortcuts::ShortcutsState::default())
         // Must be the first plugin: a second launch exits immediately and
         // instead brings the already-running instance's window to the front
         // (prevents duplicate tray icons / global-shortcut conflicts).
@@ -57,15 +57,10 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            // Register global shortcuts first so the tray shows the real keys.
-            let labels = shortcuts::register_all(&handle);
-            tray::setup_tray(&handle, &labels)?;
-            {
-                use tauri::Manager;
-                if let Ok(mut m) = app.state::<shortcuts::ShortcutLabels>().0.lock() {
-                    *m = labels;
-                }
-            }
+            // Register global shortcuts (defaults + user overrides) first so
+            // the tray shows the real keys.
+            shortcuts::register_all(&handle);
+            tray::setup_tray(&handle)?;
 
             // Show the main window on launch so users can see the app started
             // (closing it still just hides it to the tray).
@@ -107,6 +102,10 @@ pub fn run() {
             commands::get_overlay_mode,
             // Recording commands
             shortcuts::get_shortcut_labels,
+            shortcuts::get_shortcut_settings,
+            shortcuts::set_shortcut,
+            shortcuts::suspend_shortcuts,
+            shortcuts::resume_shortcuts,
             recording::check_ffmpeg_installed,
             recording::get_ffmpeg_debug_info,
             recording::install_ffmpeg,

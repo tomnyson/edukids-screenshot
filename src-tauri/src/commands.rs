@@ -172,12 +172,13 @@ fn capture_screen_at_index(target_index: usize, _screens_count: usize) -> Result
         .ok_or("No screen found")?;
 
     let rgba = screen.capture().map_err(|e| e.to_string())?;
-    let dyn_img = image::DynamicImage::ImageRgba8(
-        image::RgbaImage::from_raw(rgba.width(), rgba.height(), rgba.into_raw())
-            .ok_or("Failed to create image buffer")?,
-    );
+    let rgba_img = image::RgbaImage::from_raw(rgba.width(), rgba.height(), rgba.into_raw())
+        .ok_or("Failed to create image buffer")?;
+    // The JPEG encoder does not accept RGBA ("unsupported color type Rgba8"),
+    // which made every capture fail on Windows — drop alpha first.
+    let rgb_img = image::DynamicImage::ImageRgba8(rgba_img).to_rgb8();
     let mut jpeg_bytes: Vec<u8> = Vec::new();
-    dyn_img
+    image::DynamicImage::ImageRgb8(rgb_img)
         .write_to(&mut Cursor::new(&mut jpeg_bytes), ImageFormat::Jpeg)
         .map_err(|e| e.to_string())?;
     Ok(jpeg_bytes)

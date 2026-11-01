@@ -7,6 +7,7 @@ import PermissionGuide from './components/PermissionGuide';
 import OverlayEditor from './components/OverlayEditor';
 import RecordingBar from './components/RecordingBar';
 import FfmpegInstallModal from './components/FfmpegInstallModal';
+import ShortcutSettings from './components/ShortcutSettings';
 import RecordingPreview from './components/RecordingPreview';
 import RecordingLivePreview from './components/RecordingLivePreview';
 import RecordingScreenPicker, { type RecordingScreen } from './components/RecordingScreenPicker';
@@ -32,6 +33,7 @@ function MainApp() {
     angle: 135,
   });
   const [showAbout, setShowAbout] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [appVersion, setAppVersion] = useState('');
 
   useEffect(() => {
@@ -235,6 +237,8 @@ function MainApp() {
       );
       await register('show-about', () => setShowAbout(true)
       );
+      await register('show-shortcut-settings', () => setShowShortcuts(true)
+      );
       await register('trigger-check-update', () => {
           void checkForUpdates({ silent: false });
         }
@@ -305,6 +309,7 @@ function MainApp() {
       <PermissionGuide
         errorMessage={captureError}
         onRetry={() => { setAppState('idle'); handleCaptureRegion(); }}
+        onBack={() => { setCaptureError(null); setAppState(image ? 'has-image' : 'idle'); }}
       />
     );
   }
@@ -348,8 +353,15 @@ function MainApp() {
         </div>
         {/* Drag area fills the rest of the title bar */}
         <div className="flex-1" />
-        {/* About button */}
-        <div style={{ WebkitAppRegion: 'no-drag' } as any}>
+        {/* Shortcut settings + About buttons */}
+        <div style={{ WebkitAppRegion: 'no-drag' } as any} className="flex items-center">
+          <button
+            onClick={() => setShowShortcuts(true)}
+            title="Cài đặt phím tắt"
+            className="text-gray-400 hover:text-white transition-colors cursor-pointer text-xs px-1.5"
+          >
+            ⌨️
+          </button>
           <button
             onClick={() => setShowAbout(true)}
             title="About"
@@ -359,6 +371,8 @@ function MainApp() {
           </button>
         </div>
       </div>
+
+      {showShortcuts && <ShortcutSettings onClose={() => setShowShortcuts(false)} />}
 
       {/* About Modal */}
       {showAbout && (

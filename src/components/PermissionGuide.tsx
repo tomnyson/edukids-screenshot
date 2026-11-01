@@ -5,11 +5,50 @@ import AppLogo from './AppLogo';
 interface PermissionGuideProps {
   errorMessage?: string | null;
   onRetry: () => void;
+  onBack?: () => void;
 }
 
 const isDev = import.meta.env.DEV;
+const isMac = navigator.userAgent.includes('Mac');
 
-export default function PermissionGuide({ errorMessage, onRetry }: PermissionGuideProps) {
+export default function PermissionGuide({ errorMessage, onRetry, onBack }: PermissionGuideProps) {
+  // Windows has no Screen Recording permission: show the real error instead
+  // of macOS instructions.
+  if (!isMac) {
+    return (
+      <div className="h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-8">
+        <div className="w-24 h-24 rounded-[28px] bg-slate-900 border border-cyan-900/60 flex items-center justify-center mb-6">
+          <AppLogo size={64} />
+        </div>
+        <h1 className="text-2xl font-semibold text-white mb-2">Không chụp được màn hình</h1>
+        <p className="text-gray-400 text-sm text-center max-w-sm mb-6">
+          Đã xảy ra lỗi khi chụp. Hãy thử lại; nếu vẫn lỗi, gửi nội dung bên dưới cho nhóm phát triển.
+        </p>
+        <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 p-4 mb-6">
+          <p className="text-gray-400 text-xs uppercase tracking-wide mb-2">Chi tiết lỗi</p>
+          <p className="text-red-300 text-sm break-words select-text">{errorMessage || 'Không rõ lỗi'}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
+            >
+              Quay lại
+            </button>
+          )}
+          <button
+            onClick={onRetry}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
+          >
+            <RefreshCw size={16} />
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const handleOpenSettings = async () => {
     try {
       await invoke('open_screen_recording_settings');

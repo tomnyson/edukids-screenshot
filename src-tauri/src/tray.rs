@@ -1,52 +1,74 @@
 // tray.rs — System tray setup for Screenshot Tool
 
-use std::collections::HashMap;
-
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager,
 };
 
+use crate::shortcuts;
+
 /// "Chụp vùng" + label of the registered shortcut → "Chụp vùng  (Ctrl+Shift+2)"
-fn with_key(text: &str, labels: &HashMap<String, String>, event: &str) -> String {
-    match labels.get(event) {
-        Some(key) if !key.is_empty() => format!("{text}  ({key})"),
-        _ => text.to_string(),
+fn with_key(app: &AppHandle, text: &str, event: &str) -> String {
+    match shortcuts::current_label(app, event) {
+        Some(key) => format!("{text}  ({key})"),
+        None => text.to_string(),
     }
 }
 
-pub fn setup_tray(app: &AppHandle, labels: &HashMap<String, String>) -> tauri::Result<()> {
+const CAPTURE_REGION: &str = "📷  Chụp vùng";
+const CAPTURE_FULL: &str = "🖥️  Chụp toàn màn hình";
+const RECORD_REGION: &str = "⏺  Quay vùng";
+const RECORD_FULL: &str = "⏺  Quay toàn màn hình";
+
+pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let capture_region = MenuItem::with_id(
         app,
         "capture_region",
-        with_key("📷  Chụp vùng", labels, "trigger-capture-region"),
+        with_key(app, CAPTURE_REGION, "trigger-capture-region"),
         true,
         None::<&str>,
     )?;
     let capture_full = MenuItem::with_id(
         app,
         "capture_full",
-        with_key("🖥️  Chụp toàn màn hình", labels, "trigger-capture-full"),
+        with_key(app, CAPTURE_FULL, "trigger-capture-full"),
         true,
         None::<&str>,
     )?;
     let record_region = MenuItem::with_id(
         app,
         "record_region",
-        with_key("⏺  Quay vùng", labels, "trigger-record-region"),
+        with_key(app, RECORD_REGION, "trigger-record-region"),
         true,
         None::<&str>,
     )?;
     let record_full = MenuItem::with_id(
         app,
         "record_full",
-        with_key("⏺  Quay toàn màn hình", labels, "trigger-record-full"),
+        with_key(app, RECORD_FULL, "trigger-record-full"),
         true,
         None::<&str>,
     )?;
+    // Keep the items so their shortcut labels follow changes in settings.
+    shortcuts::attach_tray_items(
+        app,
+        vec![
+            ("trigger-capture-region", capture_region.clone(), CAPTURE_REGION),
+            ("trigger-capture-full", capture_full.clone(), CAPTURE_FULL),
+            ("trigger-record-region", record_region.clone(), RECORD_REGION),
+            ("trigger-record-full", record_full.clone(), RECORD_FULL),
+        ],
+    );
     let stop_record = MenuItem::with_id(app, "stop_record", "⏹  Dừng quay", true, None::<&str>)?;
     let open_window = MenuItem::with_id(app, "open_window", "🪟  Mở cửa sổ", true, None::<&str>)?;
+    let settings = MenuItem::with_id(
+        app,
+        "shortcut_settings",
+        "⌨️  Cài đặt phím tắt",
+        true,
+        None::<&str>,
+    )?;
     let check_update = MenuItem::with_id(
         app,
         "check_update",
@@ -66,6 +88,7 @@ pub fn setup_tray(app: &AppHandle, labels: &HashMap<String, String>) -> tauri::R
             &record_full,
             &stop_record,
             &open_window,
+            &settings,
             &check_update,
             &about,
             &quit,
@@ -115,6 +138,13 @@ pub fn setup_tray(app: &AppHandle, labels: &HashMap<String, String>) -> tauri::R
                 if let Some(win) = app.get_webview_window("main") {
                     win.show().ok();
                     win.set_focus().ok();
+                }
+            }
+            "shortcut_settings" => {
+                if let Some(win) = app.get_webview_window("main") {
+                    win.show().ok();
+                    win.set_focus().ok();
+                    win.emit("show-shortcut-settings", ()).ok();
                 }
             }
             "check_update" => {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import {
   Camera, Crop, Save, Copy, Square, ArrowUpRight,
   PenTool, Type, Undo, Redo, Trash2, MousePointer2,
@@ -50,7 +51,17 @@ const Sep = () => <div className="w-px h-6 bg-gray-700 mx-1" />;
 function useShortcutLabels(): Record<string, string> {
   const [labels, setLabels] = useState<Record<string, string>>({});
   useEffect(() => {
-    invoke<Record<string, string>>('get_shortcut_labels').then(setLabels).catch(() => {});
+    const load = () => {
+      invoke<Record<string, string>>('get_shortcut_labels').then(setLabels).catch(() => {});
+    };
+    load();
+    // Refresh when the user changes shortcuts in settings.
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    listen('shortcuts-changed', load).then((fn) => {
+      if (disposed) fn(); else unlisten = fn;
+    });
+    return () => { disposed = true; unlisten?.(); };
   }, []);
   return labels;
 }
