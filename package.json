@@ -10,6 +10,8 @@
     "brand:assets": "node scripts/generate-brand-assets.mjs",
     "build:web": "vite build",
     "build": "node scripts/tauri-build.mjs",
+    "test:smoke": "node scripts/smoke-test-windows.mjs",
+    "build:local": "tauri build --no-bundle",
     "preview": "vite preview",
     "vite:dev": "vite"
   },

@@ -140,8 +140,20 @@ yarn tauri signer generate -w ~/.tauri/edukids.key
 - Thêm GitHub Secrets: `TAURI_SIGNING_PRIVATE_KEY` (nội dung file `~/.tauri/edukids.key`) và `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 - ⚠️ Giữ khóa riêng cẩn thận. Mất khóa thì các bản đã cài sẽ không nhận được cập nhật nữa.
 
+### 🧪 Build & test trên máy trước khi phát hành (bắt buộc)
+
+Cần cài: Rust (`winget install Rustlang.Rustup`) và Visual Studio Build Tools 2022 với workload C++. Đặt `ffmpeg.exe` vào `src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe`.
+
+```bash
+yarn build:local   # build bản release, không đóng gói installer
+yarn test:smoke    # mở app thật và kiểm tra tự động, phải đạt 11/11
+```
+
+Smoke test kiểm tra: không bật cửa sổ console, IPC hoạt động, đủ 4 phím tắt, chụp màn hình, mở và đóng vùng chọn mà không treo, Ctrl+Shift+2, quay video 3 giây, đổi phím tắt. Test sẽ tắt Edukids đang chạy. Có thể test file đã cài bằng: `node scripts/smoke-test-windows.mjs "%LOCALAPPDATA%\Edukids Screenshot\screenshot-tool.exe"`.
+
 ### 🏷️ Phát hành phiên bản mới
 
+0. Chạy build và smoke test ở mục trên. Chỉ tiếp tục khi đạt 11/11.
 1. Tăng version (ví dụ `1.1.1`) ở **cả 3 file**: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
 2. Commit, rồi tạo và push tag:
    ```bash

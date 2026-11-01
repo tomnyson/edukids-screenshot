@@ -26,6 +26,13 @@ Target version: `$ARGUMENTS` (semver `X.Y.Z`, no leading `v`). If missing or inv
 
 3. **Run the `preflight` skill checks.** Do not continue if any check fails.
 
+3b. **Build locally and run the smoke test — mandatory, never skip.** Every bad release so far (console window, capture failing, overlay deadlock) passed CI and only showed up on a real machine.
+   - Ensure `src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe` exists (copy an `ffmpeg.exe` there if missing; the folder is gitignored).
+   - `yarn build:local` (= `tauri build --no-bundle`; needs Rust + VS C++ Build Tools, `%USERPROFILE%\.cargo\bin` on PATH).
+   - `yarn test:smoke` → must print **11/11 checks passed**. Any FAIL = stop, fix, rebuild, retest.
+   - Report the smoke-test table to the user before asking for confirmation.
+   - On macOS there is no automated smoke test yet: say so explicitly instead of implying it was tested.
+
 4. **Show the user a summary and ask for confirmation** before any git write:
    - old → new version, the diff (`git diff --stat`), and the exact commands below.
 

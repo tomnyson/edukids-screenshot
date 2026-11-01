@@ -33,7 +33,9 @@ Run every check below from the repo root and report a pass/fail table at the end
 
 7. **Web build** — `npx --yes yarn@1 build:web`
 
-8. **Rust** — if `cargo` is on PATH, run `cargo check --manifest-path src-tauri/Cargo.toml`. If not, mark as **SKIPPED (no cargo — CI is the first compile)**; never report it as passed.
+8. **Rust** — `cargo` lives in `%USERPROFILE%\.cargo\bin` (add it to PATH for the shell). Run `cargo check --manifest-path src-tauri/Cargo.toml`. If cargo is genuinely unavailable, mark as **SKIPPED** — never report it as passed.
+
+9. **Windows smoke test (only when asked for a full preflight or before a release)** — `yarn build:local` then `yarn test:smoke`; must be 11/11. It launches the real app with WebView2 remote debugging and checks: no console window, IPC alive, 4 shortcuts registered, capture returns an image, region overlay opens without deadlock, Ctrl+Shift+2 shows the overlay, a 3 s recording produces a file, shortcut settings change/reset. It kills any running Edukids instance first — tell the user.
 
 ## Output
 
