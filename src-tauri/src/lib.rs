@@ -60,59 +60,32 @@ pub fn run() {
             use tauri::Emitter;
             use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
-            let h1 = handle.clone();
-            handle.global_shortcut().on_shortcut(
-                "CommandOrControl+Shift+2",
-                move |_app, _sc, event| {
-                    if event.state == ShortcutState::Pressed {
-                        use tauri::Manager;
-                        if let Some(win) = h1.get_webview_window("main") {
-                            win.emit("trigger-capture-region", ()).ok();
+            // A shortcut already taken by another app (e.g. Ctrl+Shift+2 on
+            // Windows) must NOT abort startup — log it and keep the app usable
+            // via the tray menu.
+            let shortcuts: [(&str, &'static str); 4] = [
+                ("CommandOrControl+Shift+2", "trigger-capture-region"),
+                ("CommandOrControl+Shift+3", "trigger-capture-full"),
+                ("CommandOrControl+Shift+4", "trigger-record-region"), // toggle record region
+                ("CommandOrControl+Shift+1", "trigger-record-full"),   // toggle record full
+            ];
+            for (accelerator, event_name) in shortcuts {
+                let h = handle.clone();
+                let result = handle.global_shortcut().on_shortcut(
+                    accelerator,
+                    move |_app, _sc, event| {
+                        if event.state == ShortcutState::Pressed {
+                            use tauri::Manager;
+                            if let Some(win) = h.get_webview_window("main") {
+                                win.emit(event_name, ()).ok();
+                            }
                         }
-                    }
-                },
-            )?;
-
-            let h2 = handle.clone();
-            handle.global_shortcut().on_shortcut(
-                "CommandOrControl+Shift+3",
-                move |_app, _sc, event| {
-                    if event.state == ShortcutState::Pressed {
-                        use tauri::Manager;
-                        if let Some(win) = h2.get_webview_window("main") {
-                            win.emit("trigger-capture-full", ()).ok();
-                        }
-                    }
-                },
-            )?;
-
-            // ⌘⇧4 → toggle record region
-            let h4 = handle.clone();
-            handle.global_shortcut().on_shortcut(
-                "CommandOrControl+Shift+4",
-                move |_app, _sc, event| {
-                    if event.state == ShortcutState::Pressed {
-                        use tauri::Manager;
-                        if let Some(win) = h4.get_webview_window("main") {
-                            win.emit("trigger-record-region", ()).ok();
-                        }
-                    }
-                },
-            )?;
-
-            // ⌘⇧1 → toggle record full
-            let h5 = handle.clone();
-            handle.global_shortcut().on_shortcut(
-                "CommandOrControl+Shift+1",
-                move |_app, _sc, event| {
-                    if event.state == ShortcutState::Pressed {
-                        use tauri::Manager;
-                        if let Some(win) = h5.get_webview_window("main") {
-                            win.emit("trigger-record-full", ()).ok();
-                        }
-                    }
-                },
-            )?;
+                    },
+                );
+                if let Err(err) = result {
+                    eprintln!("[shortcut] could not register {accelerator}: {err}");
+                }
+            }
 
             Ok(())
         })
