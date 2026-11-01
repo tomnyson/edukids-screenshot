@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Keyboard, RotateCcw } from 'lucide-react';
 import { Dialog, DialogClose } from './AboutDialog';
+import { useT, useLang } from '../i18n';
 
 type ShortcutInfo = {
   event: string;
@@ -45,6 +46,8 @@ function previewLabel(e: KeyboardEvent): string {
 }
 
 export default function ShortcutSettings({ onClose }: { onClose: () => void }) {
+  const t = useT();
+  const [lang] = useLang();
   const [items, setItems] = useState<ShortcutInfo[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [pressed, setPressed] = useState('');
@@ -54,7 +57,8 @@ export default function ShortcutSettings({ onClose }: { onClose: () => void }) {
   const load = useCallback(() => {
     invoke<ShortcutInfo[]>('get_shortcut_settings').then(setItems).catch((e) => setError(String(e)));
   }, []);
-  useEffect(load, [load]);
+  // Reload on a language change too: the action names come from Rust.
+  useEffect(load, [load, lang]);
 
   const stopEditing = useCallback(async () => {
     setEditing(null);
@@ -114,14 +118,14 @@ export default function ShortcutSettings({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Dialog title="Cài đặt phím tắt" onClose={() => void close()} width={500}>
+    <Dialog title={t('shortcuts.title')} onClose={() => void close()} width={500}>
       <div className="flex items-center gap-2.5 px-6 pt-5">
         <Keyboard size={20} className="text-[var(--accent)]" />
-        <h2 className="text-[18px] font-bold">Cài đặt phím tắt</h2>
+        <h2 className="text-[18px] font-bold">{t('shortcuts.title')}</h2>
         <span className="ml-auto"><DialogClose onClose={() => void close()} /></span>
       </div>
       <p className="px-6 mt-1.5 text-sm text-[var(--muted)]">
-        Bấm <b className="text-[var(--text)]">Đổi</b> rồi nhấn tổ hợp phím mới. Cần có Ctrl hoặc Alt{isMac ? ' hoặc ⌘' : ''}; riêng F1–F12 và PrtSc dùng một mình được. Bấm Esc để huỷ.
+        {t('shortcuts.helpBefore')} <b className="text-[var(--text)]">{t('shortcuts.change')}</b> {t('shortcuts.helpAfter', { mac: isMac ? t('shortcuts.orCmd') : '' })}
       </p>
 
       <ul className="px-4 pt-4 pb-5 space-y-1.5">
@@ -141,12 +145,12 @@ export default function ShortcutSettings({ onClose }: { onClose: () => void }) {
                   color: isEditing ? 'var(--accent)' : it.label ? 'var(--text)' : 'var(--moon)',
                 }}
               >
-                {isEditing ? (pressed || 'Nhấn phím…') : (it.label ?? 'Chưa có')}
+                {isEditing ? (pressed || t('shortcuts.press')) : (it.label ?? t('shortcuts.none'))}
               </kbd>
               {isEditing ? (
                 <button type="button" onClick={() => void stopEditing()}
                   className="h-8 px-3.5 rounded-full text-[13px] font-semibold cursor-pointer bg-[var(--hover)] hover:bg-[var(--control)]">
-                  Huỷ
+                  {t('common.cancel')}
                 </button>
               ) : (
                 <button
@@ -155,15 +159,15 @@ export default function ShortcutSettings({ onClose }: { onClose: () => void }) {
                   onClick={() => void startEditing(it.event)}
                   className="h-8 px-3.5 rounded-full text-[13px] font-bold cursor-pointer text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40"
                 >
-                  Đổi
+                  {t('shortcuts.change')}
                 </button>
               )}
               <button
                 type="button"
                 disabled={busy || editing !== null || !it.isCustom}
                 onClick={() => void apply(it.event, null)}
-                title="Về phím mặc định"
-                aria-label={`Đặt lại phím mặc định cho ${it.name}`}
+                title={t('shortcuts.reset')}
+                aria-label={t('shortcuts.resetAria', { name: it.name })}
                 className="w-8 h-8 grid place-items-center rounded-full cursor-pointer text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover)] disabled:opacity-25"
               >
                 <RotateCcw size={15} />

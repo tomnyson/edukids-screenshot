@@ -2,12 +2,14 @@ import { useEffect, useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Pause, Play } from 'lucide-react';
 import { isMac } from '../hooks/useShortcutLabels';
+import { useT } from '../i18n';
 
 interface RecordingBarProps {
   onStop: () => void;
 }
 
 export default function RecordingBar({ onStop }: RecordingBarProps) {
+  const t = useT();
   const [elapsed, setElapsed] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -54,7 +56,7 @@ export default function RecordingBar({ onStop }: RecordingBarProps) {
           <span className={`relative inline-flex rounded-full h-3 w-3 ${isPaused ? 'bg-[var(--moon)]' : 'bg-[var(--rec)]'}`} />
         </span>
         <span className="text-[15px] font-bold" style={{ color: isPaused ? 'var(--moon)' : 'var(--rec-ink)' }}>
-          {isPaused ? 'Đã tạm dừng' : 'Đang quay'}
+          {isPaused ? t('recbar.paused') : t('recbar.recording')}
         </span>
         <span className="num text-[22px] font-semibold tracking-tight">{mins}:{secs}</span>
       </div>
@@ -67,7 +69,7 @@ export default function RecordingBar({ onStop }: RecordingBarProps) {
             onClick={togglePause}
             className="h-10 px-4 rounded-full flex items-center gap-2 text-sm font-semibold cursor-pointer border bg-[var(--raised)] hover:bg-[var(--hover)] border-[var(--control)]"
           >
-            {isPaused ? <><Play size={15} /> Tiếp tục</> : <><Pause size={15} /> Tạm dừng</>}
+            {isPaused ? <><Play size={15} /> {t('recbar.resume')}</> : <><Pause size={15} /> {t('recbar.pause')}</>}
           </button>
         )}
         <button
@@ -75,7 +77,7 @@ export default function RecordingBar({ onStop }: RecordingBarProps) {
           onClick={onStop}
           className="h-10 px-5 rounded-full flex items-center gap-2 text-sm font-bold cursor-pointer text-white bg-[var(--rec)] hover:bg-[#dc2626]"
         >
-          <span className="w-3 h-3 rounded-[3px] bg-white" aria-hidden /> Dừng và xem lại
+          <span className="w-3 h-3 rounded-[3px] bg-white" aria-hidden /> {t('recbar.stop')}
         </button>
       </div>
     </div>

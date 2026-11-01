@@ -18,11 +18,13 @@ import RecordingScreenPicker, { type RecordingScreen } from './components/Record
 import { fetchImage } from './idb';
 import { checkForUpdates } from './updater';
 import { getVersion } from '@tauri-apps/api/app';
+import { I18nProvider, useT } from './i18n';
 import './index.css';
 
 type AppState = 'idle' | 'no-permission' | 'has-image';
 
 function MainApp() {
+  const t = useT();
   const [image, setImage] = useState<string | null>(null);
   const [editorRef, setEditorRef] = useState<any>(null);
   const [appState, setAppState] = useState<AppState>('idle');
@@ -128,7 +130,7 @@ function MainApp() {
       try {
         const screens = await invoke<RecordingScreen[]>('list_recording_screens');
         if (screens.length === 0) {
-          throw new Error('Không tìm thấy màn hình để quay');
+          throw new Error(t('picker.noScreens'));
         }
         setRecordingScreens(screens);
         await invoke('show_window');
@@ -416,8 +418,8 @@ function MainApp() {
             size={drawSize}
             onSize={setDrawSize}
           />
-          <main className="flex-1 min-w-0 flex overflow-auto p-6" aria-label="Ảnh đang chỉnh">
-            <h1 className="sr-only">Chỉnh ảnh chụp</h1>
+          <main className="flex-1 min-w-0 flex overflow-auto p-6" aria-label={t('panel.canvasAria')}>
+            <h1 className="sr-only">{t('panel.canvasTitle')}</h1>
             <div className="m-auto">
               <CanvasEditor
                 imageUrl={image}
@@ -464,8 +466,9 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  if (hash === '#overlay') {
-    return <OverlayEditor />;
-  }
-  return <MainApp />;
+  return (
+    <I18nProvider>
+      {hash === '#overlay' ? <OverlayEditor /> : <MainApp />}
+    </I18nProvider>
+  );
 }

@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
+import { useT } from '../i18n';
 
 export default function OverlayEditor() {
+  const t = useT();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [rect, setRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [overlayMode, setOverlayMode] = useState<'screenshot' | 'record'>('screenshot');
@@ -439,8 +441,8 @@ export default function OverlayEditor() {
       {/* Top Banner Guide */}
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 ${isRecord ? 'bg-[var(--rec)]' : 'bg-[var(--surface)]'} text-white px-5 py-2 rounded-full text-[14px] font-semibold z-50 border ${isRecord ? 'border-transparent' : 'border-[var(--border)]'} transition-all pointer-events-none`}>
         {isRecord
-          ? 'Kéo chuột để chọn vùng cần quay · Enter để bắt đầu · Esc để huỷ'
-          : 'Kéo chuột để chọn vùng cần chụp · Enter để chụp · Esc để huỷ'
+          ? t('overlay.hintRecord')
+          : t('overlay.hintCapture')
         }
       </div>
 
@@ -548,7 +550,7 @@ export default function OverlayEditor() {
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                    Chụp
+                    {t('overlay.capture')}
                   </button>
                   <button
                     onClick={handleCopy}
@@ -557,12 +559,13 @@ export default function OverlayEditor() {
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2" />
                     </svg>
-                    Sao chép
+                    {t('overlay.copy')}
                   </button>
                   <button
                     onClick={handleCancel}
                     className="h-8 w-8 flex items-center justify-center bg-[var(--raised)] hover:bg-red-950 hover:text-red-400 text-[var(--muted)] rounded-lg transition-all cursor-pointer border border-[var(--border)] ml-2"
-                    title="Huỷ bỏ"
+                    title={t('overlay.cancel')}
+                    aria-label={t('overlay.cancel')}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -605,11 +608,11 @@ export default function OverlayEditor() {
                       }}
                       value={aspectRatio}
                     >
-                      <option value="free" disabled className="hidden">Tỉ lệ / Kích thước</option>
-                      <option value="16:9">Tỉ lệ 16:9</option>
+                      <option value="free" disabled className="hidden">{t('overlay.ratioPlaceholder')}</option>
+                      <option value="16:9">{t('overlay.ratio', { value: '16:9' })}</option>
                       <option value="1920x1080">1920 x 1080 (16:9)</option>
                       <option value="1280x720">1280 x 720 (16:9)</option>
-                      <option value="9:16">Tỉ lệ 9:16</option>
+                      <option value="9:16">{t('overlay.ratio', { value: '9:16' })}</option>
                       <option value="1080x1920">1080 x 1920 (9:16)</option>
                       <option value="720x1280">720 x 1280 (9:16)</option>
                     </select>
@@ -627,7 +630,8 @@ export default function OverlayEditor() {
                   <button
                     onClick={handleCancel}
                     className="h-8 w-8 flex items-center justify-center bg-[var(--raised)] hover:bg-red-950 hover:text-red-400 text-[var(--muted)] rounded-lg transition-all cursor-pointer border border-[var(--border)] ml-2"
-                    title="Huỷ bỏ"
+                    title={t('overlay.cancel')}
+                    aria-label={t('overlay.cancel')}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

@@ -145,15 +145,20 @@ yarn tauri signer generate -w ~/.tauri/edukids.key
 Cần cài: Rust (`winget install Rustlang.Rustup`) và Visual Studio Build Tools 2022 với workload C++. Đặt `ffmpeg.exe` vào `src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe`.
 
 ```bash
+yarn check:i18n    # không còn chữ tiếng Việt viết cứng ngoài src/i18n
 yarn build:local   # build bản release, không đóng gói installer
-yarn test:smoke    # mở app thật và kiểm tra tự động, phải đạt 11/11
+yarn test:smoke    # mở app thật và kiểm tra tự động, phải đạt 15/15
 ```
 
-Smoke test kiểm tra: không bật cửa sổ console, IPC hoạt động, đủ 4 phím tắt, chụp màn hình, mở và đóng vùng chọn mà không treo, Ctrl+Shift+2, quay video 3 giây, đổi phím tắt. Test sẽ tắt Edukids đang chạy. Có thể test file đã cài bằng: `node scripts/smoke-test-windows.mjs "%LOCALAPPDATA%\Edukids Screenshot\screenshot-tool.exe"`.
+Smoke test kiểm tra: không bật cửa sổ console, IPC hoạt động, đủ 4 phím tắt, chụp màn hình, mở và đóng vùng chọn mà không treo, Ctrl+Shift+2, quay video 3 giây, xuất MP4/GIF, đổi phím tắt, chuyển tiếng Anh rồi về tiếng Việt. Test sẽ tắt Edukids đang chạy. Có thể test file đã cài bằng: `node scripts/smoke-test-windows.mjs "%LOCALAPPDATA%\Edukids Screenshot\screenshot-tool.exe"`.
 
 ### 🏷️ Phát hành phiên bản mới
 
-0. Chạy build và smoke test ở mục trên. Chỉ tiếp tục khi đạt 11/11.
+0. Chạy build và smoke test ở mục trên. Chỉ tiếp tục khi đạt 15/15.
+
+### 🌐 Ngôn ngữ
+
+Mặc định là **Tiếng Việt**. Bấm **VI | EN** trên thanh tiêu đề (hoặc trong màn hình Giới thiệu) để đổi. App lưu lựa chọn vào `settings.json`, và cả cửa sổ chính, vùng chọn lẫn menu khay đều đổi theo ngay. Chữ hiển thị trên giao diện nằm ở `src/i18n/vi.ts` và `src/i18n/en.ts`. Chữ do phía Rust tạo ra (menu khay, thông báo lỗi) nằm ở `src-tauri/src/i18n.rs`.
 1. Tăng version (ví dụ `1.1.1`) ở **cả 3 file**: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
 2. Commit, rồi tạo và push tag:
    ```bash

@@ -1,5 +1,6 @@
 import { Crop, Monitor, SquareDashed, MonitorPlay, ImageUp, Keyboard } from 'lucide-react';
 import { useShortcutLabels, isMac } from '../hooks/useShortcutLabels';
+import { useT } from '../i18n';
 
 interface HomeScreenProps {
   onCaptureRegion: () => void;
@@ -64,14 +65,15 @@ function ActionTile({ a, keyLabel }: { a: Action; keyLabel?: string }) {
 /** The home screen: the four things this app does, each one click (or one shortcut) away. */
 export default function HomeScreen(p: HomeScreenProps) {
   const keys = useShortcutLabels();
+  const t = useT();
 
   const capture: Action[] = [
-    { event: 'trigger-capture-region', title: 'Chụp một vùng', hint: 'Kéo chuột chọn phần màn hình cần chụp', icon: Crop, onClick: p.onCaptureRegion, primary: true },
-    { event: 'trigger-capture-full', title: 'Chụp cả màn hình', hint: 'Chụp ngay toàn bộ màn hình đang mở', icon: Monitor, onClick: p.onCaptureFull },
+    { event: 'trigger-capture-region', title: t('home.captureRegion'), hint: t('home.captureRegionHint'), icon: Crop, onClick: p.onCaptureRegion, primary: true },
+    { event: 'trigger-capture-full', title: t('home.captureFull'), hint: t('home.captureFullHint'), icon: Monitor, onClick: p.onCaptureFull },
   ];
   const record: Action[] = [
-    { event: 'trigger-record-region', title: 'Quay một vùng', hint: 'Quay video phần màn hình bạn chọn', icon: SquareDashed, onClick: p.onRecordRegion, record: true },
-    { event: 'trigger-record-full', title: 'Quay cả màn hình', hint: 'Quay video toàn màn hình, có tiếng nếu có micro', icon: MonitorPlay, onClick: p.onRecordFull, record: true },
+    { event: 'trigger-record-region', title: t('home.recordRegion'), hint: t('home.recordRegionHint'), icon: SquareDashed, onClick: p.onRecordRegion, record: true },
+    { event: 'trigger-record-full', title: t('home.recordFull'), hint: t('home.recordFullHint'), icon: MonitorPlay, onClick: p.onRecordFull, record: true },
   ];
 
   const openImage = () => {
@@ -93,37 +95,37 @@ export default function HomeScreen(p: HomeScreenProps) {
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-[920px] mx-auto px-8 pt-12 pb-10">
-        <h1 className="text-[30px] font-bold tracking-tight leading-tight">Hôm nay bạn muốn chụp gì?</h1>
+        <h1 className="text-[30px] font-bold tracking-tight leading-tight">{t('home.title')}</h1>
         <p className="mt-2 text-[15px] text-[var(--muted)]">
-          Chọn một việc bên dưới. Phím tắt dùng được ở mọi nơi, kể cả khi cửa sổ này đang ẩn.
+          {t('home.subtitle')}
         </p>
 
         <section aria-labelledby="h-capture" className="mt-9">
-          <h2 id="h-capture" className="text-[15px] font-semibold text-[var(--muted)] mb-3">Chụp ảnh</h2>
+          <h2 id="h-capture" className="text-[15px] font-semibold text-[var(--muted)] mb-3">{t('home.sectionCapture')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {capture.map((a) => <ActionTile key={a.event} a={a} keyLabel={keys[a.event]} />)}
           </div>
         </section>
 
         <section aria-labelledby="h-record" className="mt-8">
-          <h2 id="h-record" className="text-[15px] font-semibold text-[var(--muted)] mb-3">Quay video</h2>
+          <h2 id="h-record" className="text-[15px] font-semibold text-[var(--muted)] mb-3">{t('home.sectionRecord')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {record.map((a) => <ActionTile key={a.event} a={a} keyLabel={keys[a.event]} />)}
           </div>
         </section>
 
-        <section aria-label="Cách khác" className="mt-8 rounded-[var(--radius-panel)] border flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4"
+        <section aria-label={t('home.other')} className="mt-8 rounded-[var(--radius-panel)] border flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
           <button type="button" onClick={openImage}
             className="h-10 px-4 rounded-full flex items-center gap-2 text-sm font-semibold cursor-pointer bg-[var(--raised)] hover:bg-[var(--hover)] border border-[var(--control)]">
-            <ImageUp size={17} /> Mở ảnh có sẵn
+            <ImageUp size={17} /> {t('home.openImage')}
           </button>
           <span className="text-sm text-[var(--muted)]">
-            hoặc dán ảnh vừa sao chép bằng <Key>{pasteKey}</Key>
+            {t('home.paste')} <Key>{pasteKey}</Key>
           </span>
           <button type="button" onClick={p.onShortcuts}
             className="ml-auto text-sm font-medium flex items-center gap-1.5 cursor-pointer text-[var(--accent)] hover:underline underline-offset-4">
-            <Keyboard size={16} /> Đổi phím tắt
+            <Keyboard size={16} /> {t('home.changeShortcuts')}
           </button>
         </section>
       </div>

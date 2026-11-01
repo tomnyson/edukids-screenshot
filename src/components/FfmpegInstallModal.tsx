@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Clapperboard, CheckCircle2, Download, RefreshCw, Loader2, Bug } from 'lucide-react';
+import { Dialog, DialogClose } from './AboutDialog';
+import { useT } from '../i18n';
 
 type InstallState = 'idle' | 'installing' | 'success' | 'error';
 
 export default function FfmpegInstallModal({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const [state, setState] = useState<InstallState>('idle');
   const [message, setMessage] = useState('');
   const [showDebug, setShowDebug] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
-  
+
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
 
   const handleInstall = async () => {
@@ -28,9 +32,9 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
     const hasFFmpeg = await invoke<boolean>('check_ffmpeg_installed');
     if (hasFFmpeg) {
       setState('success');
-      setMessage('FFmpeg đã sẵn sàng! ✓');
+      setMessage(t('ffmpeg.ready'));
     } else {
-      setMessage('Vẫn không tìm thấy FFmpeg.');
+      setMessage(t('ffmpeg.stillMissing'));
       setState('error');
     }
   };
@@ -41,135 +45,89 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
     setShowDebug(true);
   };
 
+  const ok = state === 'success';
+
   return (
-    <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 max-w-md w-full"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="text-center mb-4">
-          <div className="text-4xl mb-2">
-            {state === 'success' ? '✅' : state === 'installing' ? '⏳' : '🎬'}
-          </div>
-          <h2 className="text-lg font-bold text-white">
-            {state === 'success' ? 'FFmpeg đã sẵn sàng!' : 'Cần cài FFmpeg'}
-          </h2>
-          <p className="text-[var(--muted)] text-sm mt-1">
-            {state === 'success'
-              ? 'Bạn có thể quay video ngay bây giờ.'
-              : 'Tính năng quay video cần FFmpeg để hoạt động.'}
-          </p>
+    <Dialog title={ok ? t('ffmpeg.ready') : t('ffmpeg.needTitle')} onClose={onClose} width={440}>
+      <div className="flex justify-end p-3 pb-0"><DialogClose onClose={onClose} /></div>
+      <div className="px-7 pb-7 -mt-2">
+        <div className="text-center mb-5">
+          <span className={ok ? 'text-[var(--positive)]' : 'text-[var(--accent)]'}>
+            {ok ? <CheckCircle2 size={40} className="mx-auto" /> : <Clapperboard size={40} className="mx-auto" />}
+          </span>
+          <h2 className="mt-3 text-[20px] font-bold">{ok ? t('ffmpeg.ready') : t('ffmpeg.needTitle')}</h2>
+          <p className="text-[var(--muted)] text-sm mt-1">{ok ? t('ffmpeg.readyBody') : t('ffmpeg.needBody')}</p>
         </div>
 
-        {/* Status message */}
         {message && (
           <div
-            className={`rounded-lg p-3 text-sm font-mono mb-4 text-left whitespace-pre-wrap break-all max-h-32 overflow-auto ${
-              state === 'success'
-                ? 'bg-green-900/30 border border-green-700/50 text-green-400'
-                : state === 'error'
-                ? 'bg-red-900/30 border border-red-700/50 text-red-400'
-                : 'bg-[var(--raised)] text-[var(--text)]'
-            }`}
+            role={state === 'error' ? 'alert' : undefined}
+            className="rounded-[var(--radius-control)] p-3 text-sm mb-4 whitespace-pre-wrap break-words max-h-32 overflow-auto select-text"
+            style={state === 'error' ? { background: '#2a1416', color: 'var(--rec-ink)' } : { background: 'var(--raised)', color: 'var(--text)' }}
           >
             {message}
           </div>
         )}
 
-        {/* Installing spinner */}
         {state === 'installing' && (
-          <div className="flex items-center justify-center gap-3 py-4">
-            <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-            <span className="text-[var(--text)] text-sm">Đang cài đặt FFmpeg...</span>
+          <div className="flex items-center justify-center gap-3 py-4 text-sm">
+            <Loader2 size={20} className="animate-spin text-[var(--accent)]" />
+            {t('ffmpeg.installing')}
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex flex-col gap-2">
-          {state === 'success' ? (
-            <button
-              onClick={onClose}
-              className="w-full px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-sm font-medium transition-colors cursor-pointer"
-            >
-              Bắt đầu quay video
+        <div className="flex flex-col gap-2.5">
+          {ok ? (
+            <button type="button" onClick={onClose}
+              className="w-full h-11 rounded-full text-[15px] font-bold cursor-pointer text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]">
+              {t('ffmpeg.startRecording')}
             </button>
           ) : state !== 'installing' ? (
             <>
-              {/* Auto install button */}
-              <button
-                onClick={handleInstall}
-                className="w-full px-4 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white rounded-xl text-sm font-medium transition-colors cursor-pointer flex items-center justify-center gap-2"
-              >
-                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 3v12m0 0l-4-4m4 4l4-4" />
-                </svg>
-                {isWindows ? "Tải & Cấu hình tự động (~30MB)" : "Cài đặt tự động (Homebrew)"}
+              <button type="button" onClick={handleInstall}
+                className="w-full h-11 rounded-full flex items-center justify-center gap-2 text-[15px] font-bold cursor-pointer text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]">
+                <Download size={17} />
+                {isWindows ? t('ffmpeg.autoWin') : t('ffmpeg.autoMac')}
+              </button>
+              <button type="button" onClick={handleRetry}
+                className="w-full h-11 rounded-full flex items-center justify-center gap-2 text-[15px] font-semibold cursor-pointer border bg-[var(--raised)] hover:bg-[var(--hover)] border-[var(--control)]">
+                <RefreshCw size={16} />
+                {t('ffmpeg.recheck')}
               </button>
 
-              {/* Retry button */}
-              <button
-                onClick={handleRetry}
-                className="w-full px-4 py-2 bg-[var(--raised)] hover:bg-[var(--hover)] text-[var(--text)] rounded-xl text-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
-              >
-                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5M6.3 17.7A8 8 0 0119.7 6.3M17.7 6.3A8 8 0 016.3 17.7" />
-                </svg>
-                Đã cài rồi? Kiểm tra lại
-              </button>
-
-              {/* Manual instruction (collapsible) */}
-              <div className="border-t border-[var(--border)] pt-3 mt-1">
-                <p className="text-[var(--muted)] text-xs text-center mb-2">
-                  Hoặc cài thủ công qua {isWindows ? "tải file hệ thống" : "Terminal"}:
+              <div className="border-t border-[var(--border)] pt-4 mt-2">
+                <p className="text-[var(--muted)] text-[13px] text-center mb-2">
+                  {t('ffmpeg.manual', { via: isWindows ? t('ffmpeg.viaWin') : t('ffmpeg.viaMac') })}
                 </p>
-                <div className="bg-[var(--raised)] rounded-lg p-2.5 text-xs text-green-400 font-mono text-center select-all whitespace-pre-wrap">
-                  {isWindows ? "1. Tải ffmpeg.exe trên mạng\n2. Ném vào thư mục %localappdata%/com.screenshot-tool.tauri/" : "brew install ffmpeg"}
-                </div>
+                {isWindows ? (
+                  <p className="bg-[var(--raised)] rounded-[var(--radius-control)] p-3 text-[13px] text-[var(--text)] whitespace-pre-wrap select-text">
+                    {t('ffmpeg.manualWin')}
+                  </p>
+                ) : (
+                  <pre className="bg-[var(--raised)] rounded-[var(--radius-control)] p-3 text-[13px] text-[var(--text)] text-center select-all"><code>brew install ffmpeg</code></pre>
+                )}
               </div>
 
-              {/* Debug link */}
-              <button
-                onClick={handleDebug}
-                className="text-[var(--faint)] hover:text-[var(--text)] text-xs transition-colors cursor-pointer mt-1"
-              >
-                🔍 Chi tiết debug
+              <button type="button" onClick={handleDebug}
+                className="self-center inline-flex items-center gap-1.5 text-[13px] text-[var(--faint)] hover:text-[var(--text)] cursor-pointer mt-1">
+                <Bug size={14} /> {t('ffmpeg.debug')}
               </button>
             </>
           ) : null}
-
-          {/* Close button */}
-          {state !== 'installing' && state !== 'success' && (
-            <button
-              onClick={onClose}
-              className="text-[var(--muted)] hover:text-[var(--text)] text-xs transition-colors cursor-pointer mt-1"
-            >
-              Đóng
-            </button>
-          )}
         </div>
 
-        {/* Debug info panel */}
         {showDebug && debugInfo && (
           <div className="mt-4 border-t border-[var(--border)] pt-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-[var(--muted)] font-medium">Debug Info</span>
-              <button
-                onClick={() => setShowDebug(false)}
-                className="text-[var(--faint)] hover:text-[var(--text)] text-xs cursor-pointer"
-              >
-                Ẩn
+              <span className="text-[13px] text-[var(--muted)] font-medium">{t('ffmpeg.debug')}</span>
+              <button type="button" onClick={() => setShowDebug(false)} className="text-[13px] text-[var(--faint)] hover:text-[var(--text)] cursor-pointer">
+                {t('common.hide')}
               </button>
             </div>
-            <pre className="bg-[var(--ground)] rounded-lg p-3 text-xs text-[var(--muted)] font-mono whitespace-pre-wrap max-h-40 overflow-auto border border-[var(--border)]">
-              {debugInfo}
-            </pre>
+            <pre className="bg-[var(--ground)] rounded-[var(--radius-control)] p-3 text-xs text-[var(--muted)] whitespace-pre-wrap max-h-40 overflow-auto border border-[var(--border)] select-text"><code>{debugInfo}</code></pre>
           </div>
         )}
       </div>
-    </div>
+    </Dialog>
   );
 }

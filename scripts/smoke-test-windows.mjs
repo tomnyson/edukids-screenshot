@@ -16,7 +16,7 @@
 // Exit code 0 = all checks passed.
 
 import { spawn, execFileSync } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 if (process.platform !== 'win32') {
@@ -232,6 +232,21 @@ try {
   const back = await main.evaluate(invokeExpr('get_shortcut_labels'));
   record('shortcut settings change + reset', set.value?.ok && changed && reset.value?.ok && back.value?.v?.['trigger-capture-full'] === 'Ctrl+Shift+3',
     `${set.value?.err ?? ''} after=${after.value?.v?.['trigger-capture-full']} back=${back.value?.v?.['trigger-capture-full']}`);
+
+  // 10b/10c. Language: switch to English (saved to settings.json), then back to Vietnamese.
+  const bodyHas = async (text) =>
+    (await main.evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`)).value === true;
+  const toEn = await main.evaluate(invokeExpr('set_language', { lang: 'en' }));
+  const enShown = await waitFor(() => bodyHas('What do you want to capture'), 4000);
+  const langNow = (await main.evaluate(invokeExpr('get_language'))).value?.v;
+  const settingsFile = path.join(process.env.APPDATA ?? '', 'com.screenshot-tool.tauri', 'settings.json');
+  const saved = existsSync(settingsFile) ? readFileSync(settingsFile, 'utf8') : '';
+  record('switch to English (UI + saved setting)',
+    toEn.value?.ok && !!enShown && langNow === 'en' && saved.includes('"en"'),
+    `${toEn.value?.err ?? ''} shown=${!!enShown} get_language=${langNow} saved=${saved.replace(/\s+/g, ' ').trim() || 'missing'}`);
+  const toVi = await main.evaluate(invokeExpr('set_language', { lang: 'vi' }));
+  const viShown = await waitFor(() => bodyHas('Hôm nay bạn muốn chụp gì?'), 4000);
+  record('switch back to Vietnamese (default)', toVi.value?.ok && !!viShown, toVi.value?.err ?? `shown=${!!viShown}`);
 
   // 11. Still alive at the end
   record('app still responsive at the end', await alive());

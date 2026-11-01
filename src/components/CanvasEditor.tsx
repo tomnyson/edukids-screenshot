@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { computeLayout, PADDING, type CanvasLayout } from './canvasLayout';
+import { tStatic } from '../i18n';
 
 export type BackgroundOption =
   | { type: 'none' }
@@ -14,7 +15,7 @@ export type AspectRatio = {
 };
 
 export const ASPECT_RATIOS: AspectRatio[] = [
-  { label: 'Gốc', value: null },
+  { label: 'original', value: null }, // shown as t('panel.frameOriginal')
   { label: '16:9', value: [16, 9] },
   { label: '9:16', value: [9, 16] },
   { label: '4:3', value: [4, 3] },
@@ -384,7 +385,7 @@ export default function CanvasEditor({
         previewGroup = makeArrow(startX, startY, startX + 1, startY, colorRef.current, sizeRef.current);
         fabricCanvas.add(previewGroup);
       } else if (currentTool === 'text') {
-        const text = new fabric.IText('Nhập chữ...', {
+        const text = new fabric.IText(tStatic('canvas.textPlaceholder'), {
           left: pt.x, top: pt.y,
           fill: colorRef.current, fontSize: sizeRef.current * 3 || 24,
           fontFamily: 'sans-serif',

@@ -1,6 +1,7 @@
 import { Monitor, RefreshCw } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import EdukidsMark from './brand/EdukidsMark';
+import { useT } from '../i18n';
 
 interface PermissionGuideProps {
   errorMessage?: string | null;
@@ -12,38 +13,48 @@ const isDev = import.meta.env.DEV;
 const isMac = navigator.userAgent.includes('Mac');
 
 export default function PermissionGuide({ errorMessage, onRetry, onBack }: PermissionGuideProps) {
+  const t = useT();
+
+  const details = (msg: string | null | undefined) => (
+    <div className="w-full max-w-md bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-4 mb-6">
+      <p className="text-[var(--muted)] text-[13px] font-semibold mb-2">{t('common.errorDetails')}</p>
+      <p className="text-[var(--rec-ink)] text-sm break-words select-text">{msg || t('common.unknownError')}</p>
+    </div>
+  );
+
+  const retryButton = (
+    <button
+      type="button"
+      onClick={onRetry}
+      className="h-11 px-6 rounded-full flex items-center gap-2 text-[15px] font-bold cursor-pointer text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
+    >
+      <RefreshCw size={16} />
+      {t('common.retry')}
+    </button>
+  );
+
   // Windows has no Screen Recording permission: show the real error instead
   // of macOS instructions.
   if (!isMac) {
     return (
-      <div className="h-screen bg-[var(--ground)] text-white flex flex-col items-center justify-center p-8">
+      <div className="h-screen bg-[var(--ground)] text-[var(--text)] flex flex-col items-center justify-center p-8">
         <div className="w-24 h-24 rounded-[28px] bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center mb-6">
           <EdukidsMark size={64} />
         </div>
-        <h1 className="text-2xl font-semibold text-white mb-2">Không chụp được màn hình</h1>
-        <p className="text-[var(--muted)] text-sm text-center max-w-sm mb-6">
-          Đã xảy ra lỗi khi chụp. Hãy thử lại; nếu vẫn lỗi, gửi nội dung bên dưới cho nhóm phát triển.
-        </p>
-        <div className="w-full max-w-md bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-4 mb-6">
-          <p className="text-[var(--muted)] text-xs uppercase tracking-wide mb-2">Chi tiết lỗi</p>
-          <p className="text-red-300 text-sm break-words select-text">{errorMessage || 'Không rõ lỗi'}</p>
-        </div>
+        <h1 className="text-2xl font-bold mb-2">{t('error.captureTitle')}</h1>
+        <p className="text-[var(--muted)] text-sm text-center max-w-sm mb-6">{t('error.captureBody')}</p>
+        {details(errorMessage)}
         <div className="flex items-center gap-3">
           {onBack && (
             <button
+              type="button"
               onClick={onBack}
-              className="px-6 py-3 bg-[var(--raised)] hover:bg-[var(--hover)] rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
+              className="h-11 px-6 rounded-full text-[15px] font-semibold cursor-pointer border bg-[var(--raised)] hover:bg-[var(--hover)] border-[var(--control)]"
             >
-              Quay lại
+              {t('common.back')}
             </button>
           )}
-          <button
-            onClick={onRetry}
-            className="flex items-center gap-2 px-6 py-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
-          >
-            <RefreshCw size={16} />
-            Thử lại
-          </button>
+          {retryButton}
         </div>
       </div>
     );
@@ -58,68 +69,40 @@ export default function PermissionGuide({ errorMessage, onRetry, onBack }: Permi
   };
 
   return (
-    <div className="h-screen bg-[var(--ground)] text-white flex flex-col items-center justify-center p-8">
-      {/* Icon */}
+    <div className="h-screen bg-[var(--ground)] text-[var(--text)] flex flex-col items-center justify-center p-8">
       <div className="w-24 h-24 rounded-[28px] bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center mb-6">
         <EdukidsMark size={64} />
       </div>
 
-      {/* Title */}
-      <h1 className="text-2xl font-semibold text-white mb-2">
-        Cần cấp quyền Screen Recording
-      </h1>
-      <p className="text-[var(--muted)] text-sm text-center max-w-sm mb-8">
-        macOS yêu cầu cấp quyền Screen Recording trước khi ứng dụng có thể chụp màn hình.
-      </p>
+      <h1 className="text-2xl font-bold mb-2">{t('perm.title')}</h1>
+      <p className="text-[var(--muted)] text-sm text-center max-w-sm mb-8">{t('perm.body')}</p>
 
       {isDev && (
-        <div className="w-full max-w-md bg-amber-950/50 border border-amber-800 rounded-2xl p-4 mb-4">
-          <p className="text-amber-200 text-sm leading-relaxed">
-            Bạn đang chạy bằng <code>yarn dev</code>. Trên macOS, đôi khi cần cấp quyền cho
-            <span className="font-semibold"> Terminal</span> hoặc app host đang chạy Tauri, không chỉ riêng
-            <span className="font-semibold"> Screenshot Tool</span>.
-          </p>
+        <div className="w-full max-w-md rounded-2xl p-4 mb-4 text-sm leading-relaxed" style={{ background: '#2a2210', color: 'var(--moon)' }}>
+          {t('perm.dev')}
         </div>
       )}
 
-      {errorMessage && (
-        <div className="w-full max-w-md bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-4 mb-4">
-          <p className="text-[var(--muted)] text-xs uppercase tracking-wide mb-2">Chi tiết lỗi</p>
-          <p className="text-red-300 text-sm break-words">{errorMessage}</p>
-        </div>
-      )}
+      {errorMessage && details(errorMessage)}
 
-      {/* Steps */}
       <div className="w-full max-w-md bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden mb-6">
-        <Step num={1} text='Mở System Settings (⌘ + Space → "System Settings").' />
-        <Step num={2} text='Chọn mục Privacy & Security ở thanh bên trái.' />
-        <Step num={3} text='Cuộn xuống và chọn "Screen & System Audio Recording".' />
-        <Step
-          num={4}
-          text={
-            isDev
-              ? 'Bật toggle cho "Screenshot Tool" và cả "Terminal" (hoặc iTerm / app host đang chạy yarn dev).'
-              : 'Bật toggle cho ứng dụng "Screenshot Tool".'
-          }
-        />
-        <Step num={5} text='⚠️ Quan trọng: Quit app hoàn toàn và mở lại. Nếu bạn vừa bật Terminal, hãy restart cả Terminal.' last />
+        <Step num={1} text={t('perm.step1')} />
+        <Step num={2} text={t('perm.step2')} />
+        <Step num={3} text={t('perm.step3')} />
+        <Step num={4} text={isDev ? t('perm.step4dev') : t('perm.step4')} />
+        <Step num={5} text={t('perm.step5')} last />
       </div>
 
       <div className="flex items-center gap-3">
         <button
+          type="button"
           onClick={handleOpenSettings}
-          className="flex items-center gap-2 px-6 py-3 bg-[var(--raised)] hover:bg-[var(--hover)] rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
+          className="h-11 px-6 rounded-full flex items-center gap-2 text-[15px] font-semibold cursor-pointer border bg-[var(--raised)] hover:bg-[var(--hover)] border-[var(--control)]"
         >
           <Monitor size={16} />
-          Mở Settings
+          {t('perm.openSettings')}
         </button>
-        <button
-          onClick={onRetry}
-          className="flex items-center gap-2 px-6 py-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
-        >
-          <RefreshCw size={16} />
-          Thử lại
-        </button>
+        {retryButton}
       </div>
     </div>
   );

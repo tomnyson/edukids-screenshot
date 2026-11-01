@@ -3,6 +3,7 @@ import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { save } from '@tauri-apps/plugin-dialog';
 import TrimTimeline, { formatTime } from './TrimTimeline';
+import { useT } from '../i18n';
 import { Scissors, Gauge, FileVideo, VolumeX, Trash2, Download, Loader2, X, TriangleAlert } from 'lucide-react';
 
 interface RecordingPreviewProps {
@@ -15,6 +16,7 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const GIF_WARN_SECONDS = 30;
 
 export default function RecordingPreview({ filePath, onClose }: RecordingPreviewProps) {
+  const t = useT();
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoSrc = convertFileSrc(filePath);
 
@@ -100,7 +102,7 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
 
     const dest = await save({
       defaultPath: `Recording-${dateStr}.${format}`,
-      filters: [{ name: format === 'gif' ? 'GIF' : 'Video MP4', extensions: [format] }],
+      filters: [{ name: format === 'gif' ? 'GIF' : t('video.fileVideo'), extensions: [format] }],
     });
     if (!dest) return;
 
@@ -118,7 +120,7 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
       onClose();
     } catch (err) {
       const msg = String(err);
-      if (!msg.includes('Đã huỷ')) setError(msg);
+      if (!msg.includes('CANCELLED')) setError(msg);
     } finally {
       unlisten();
       setBusy(false);
@@ -143,13 +145,14 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
         <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-[var(--rec)]" aria-hidden />
-            <h2 className="font-bold text-[17px]">Xem lại & chỉnh video</h2>
+            <h2 className="font-bold text-[17px]">{t('video.title')}</h2>
           </div>
           <button
             onClick={discard}
             disabled={busy}
             className="w-8 h-8 grid place-items-center rounded-full cursor-pointer text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover)] disabled:opacity-30"
-            title="Đóng (bỏ video)"
+            title={t('video.closeDiscard')}
+            aria-label={t('video.closeDiscard')}
           >
             <X size={17} />
           </button>
@@ -173,11 +176,11 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
           {/* Trim */}
           <div className="px-5 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[14px] font-semibold flex items-center gap-1.5"><Scissors size={16} className="text-[var(--accent)]" /> Cắt video</span>
+              <span className="text-[14px] font-semibold flex items-center gap-1.5"><Scissors size={16} className="text-[var(--accent)]" /> {t('video.trim')}</span>
               <div className="flex gap-1.5">
-                <button className={chip(false)} disabled={busy || !duration} onClick={setStartHere}>⇤ Đặt đầu tại đây</button>
-                <button className={chip(false)} disabled={busy || !duration} onClick={setEndHere}>Đặt cuối tại đây ⇥</button>
-                <button className={chip(false)} disabled={busy || !duration} onClick={resetTrim} title="Bỏ cắt">↺</button>
+                <button className={chip(false)} disabled={busy || !duration} onClick={setStartHere}>{t('video.setStart')}</button>
+                <button className={chip(false)} disabled={busy || !duration} onClick={setEndHere}>{t('video.setEnd')}</button>
+                <button className={chip(false)} disabled={busy || !duration} onClick={resetTrim} title={t('video.resetTrim')} aria-label={t('video.resetTrim')}>↺</button>
               </div>
             </div>
             {duration > 0 ? (
@@ -198,7 +201,7 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
           {/* Options */}
           <div className="px-5 py-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <div className="text-[14px] font-semibold mb-2 flex items-center gap-1.5"><Gauge size={16} className="text-[var(--accent)]" /> Tốc độ</div>
+              <div className="text-[14px] font-semibold mb-2 flex items-center gap-1.5"><Gauge size={16} className="text-[var(--accent)]" /> {t('video.speed')}</div>
               <div className="flex flex-wrap gap-1">
                 {SPEEDS.map((s) => (
                   <button key={s} className={chip(speed === s)} disabled={busy} onClick={() => setSpeed(s)}>{s}x</button>
@@ -206,7 +209,7 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
               </div>
             </div>
             <div>
-              <div className="text-[14px] font-semibold mb-2 flex items-center gap-1.5"><FileVideo size={16} className="text-[var(--accent)]" /> Định dạng</div>
+              <div className="text-[14px] font-semibold mb-2 flex items-center gap-1.5"><FileVideo size={16} className="text-[var(--accent)]" /> {t('video.format')}</div>
               <div className="flex items-center gap-1">
                 <button className={chip(format === 'mp4')} disabled={busy} onClick={() => setFormat('mp4')}>MP4</button>
                 <button className={chip(format === 'gif')} disabled={busy} onClick={() => setFormat('gif')}>GIF</button>
@@ -218,17 +221,17 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
                     onChange={(e) => setMute(e.target.checked)}
                     className="w-4 h-4 accent-[#2563eb]"
                   />
-                  <VolumeX size={15} /> Tắt tiếng
+                  <VolumeX size={15} /> {t('video.mute')}
                 </label>
               </div>
             </div>
           </div>
 
           <div className="px-5 pb-3 text-[13px] text-[var(--muted)] flex flex-wrap gap-x-4 gap-y-1">
-            <span>Độ dài sau khi xuất: <b className="num text-[var(--text)]">{formatTime(outDuration)}</b></span>
-            {unchanged && <span className="text-[var(--faint)]">Chưa chỉnh gì: bấm Lưu sẽ lưu ngay, không cần xuất lại</span>}
+            <span>{t('video.outLength')} <b className="num text-[var(--text)]">{formatTime(outDuration)}</b></span>
+            {unchanged && <span className="text-[var(--faint)]">{t('video.unchanged')}</span>}
             {format === 'gif' && outDuration > GIF_WARN_SECONDS && (
-              <span className="text-[var(--moon)] flex items-center gap-1"><TriangleAlert size={14} /> GIF dài hơn {GIF_WARN_SECONDS}s sẽ rất nặng, nên cắt ngắn hoặc dùng MP4</span>
+              <span className="text-[var(--moon)] flex items-center gap-1"><TriangleAlert size={14} /> {t('video.gifWarn', { seconds: GIF_WARN_SECONDS })}</span>
             )}
           </div>
 
@@ -238,7 +241,7 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
                 <div className="h-full bg-[var(--primary)] transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
               </div>
               <span className="num text-[13px] font-semibold w-10 text-right">{Math.round(progress * 100)}%</span>
-              <button onClick={cancelExport} className="h-8 px-3.5 rounded-full text-[13px] font-semibold cursor-pointer bg-[var(--hover)] hover:bg-[var(--control)]">Huỷ</button>
+              <button onClick={cancelExport} className="h-8 px-3.5 rounded-full text-[13px] font-semibold cursor-pointer bg-[var(--hover)] hover:bg-[var(--control)]">{t('common.cancel')}</button>
             </div>
           )}
 
@@ -256,14 +259,14 @@ export default function RecordingPreview({ filePath, onClose }: RecordingPreview
             disabled={busy}
             className="h-11 px-5 rounded-full flex items-center gap-2 text-[15px] font-semibold cursor-pointer border bg-[var(--raised)] hover:bg-[var(--hover)] border-[var(--control)] disabled:opacity-40"
           >
-            <Trash2 size={17} /> Bỏ video
+            <Trash2 size={17} /> {t('video.discard')}
           </button>
           <button
             onClick={handleSave}
             disabled={busy || !duration}
             className="h-11 px-6 rounded-full flex items-center gap-2 text-[15px] font-bold cursor-pointer text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
-            {busy ? <><Loader2 size={17} className="animate-spin" /> {progress !== null ? 'Đang xuất…' : 'Đang lưu…'}</> : <><Download size={17} /> {format === 'gif' ? 'Xuất GIF' : 'Lưu video'}</>}
+            {busy ? <><Loader2 size={17} className="animate-spin" /> {progress !== null ? t('video.exporting') : t('video.saving')}</> : <><Download size={17} /> {format === 'gif' ? t('video.exportGif') : t('video.save')}</>}
           </button>
         </div>
       </div>

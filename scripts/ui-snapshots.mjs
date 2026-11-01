@@ -38,6 +38,10 @@ const shot = async (name) => {
 
 await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
 await sleep(1500);
+// SNAP_LANG=en captures every state in English (to check text fits); restored to vi at the end.
+const LANG = process.env.SNAP_LANG || 'vi';
+await ev(`window.__TAURI_INTERNALS__.invoke('set_language', { lang: '${LANG}' })`);
+await sleep(800);
 await shot('1-idle');
 
 // Synthetic "screenshot" (a fake web page) — never the real desktop.
@@ -74,7 +78,7 @@ await ev(`document.querySelector('[role="dialog"] [aria-label="Đóng"]')?.click
 await sleep(400);
 
 // Back to the home screen, so the idle screen's state is shown again after the editor.
-await ev(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Chụp mới')?.click()`);
+await ev(`[...document.querySelectorAll('button')].find(b => ['Chụp mới', 'New capture'].includes(b.textContent.trim()))?.click()`);
 await sleep(600);
 await shot('1b-home-after-editor');
 
@@ -115,6 +119,7 @@ if (ff) {
   await shot('5-recording-preview');
 }
 
+await ev(`window.__TAURI_INTERNALS__.invoke('set_language', { lang: 'vi' })`);
 ws.close();
 try { ps(`Stop-Process -Id ${app.pid} -Force -ErrorAction SilentlyContinue`); } catch {}
 process.exit(0);

@@ -8,92 +8,31 @@ use tauri::{
 
 use crate::shortcuts;
 
-/// "Chụp vùng" + label of the registered shortcut → "Chụp vùng  (Ctrl+Shift+2)"
-fn with_key(app: &AppHandle, text: &str, event: &str) -> String {
-    match shortcuts::current_label(app, event) {
-        Some(key) => format!("{text}  ({key})"),
-        None => text.to_string(),
-    }
-}
-
-const CAPTURE_REGION: &str = "📷  Chụp vùng";
-const CAPTURE_FULL: &str = "🖥️  Chụp toàn màn hình";
-const RECORD_REGION: &str = "⏺  Quay vùng";
-const RECORD_FULL: &str = "⏺  Quay toàn màn hình";
+/// Tray items in menu order: (menu id, i18n key of the label, shortcut event shown after it).
+const ITEMS: [(&str, &str, Option<&str>); 10] = [
+    ("capture_region", "tray.capture_region", Some("trigger-capture-region")),
+    ("capture_full", "tray.capture_full", Some("trigger-capture-full")),
+    ("record_region", "tray.record_region", Some("trigger-record-region")),
+    ("record_full", "tray.record_full", Some("trigger-record-full")),
+    ("stop_record", "tray.stop_record", None),
+    ("open_window", "tray.open_window", None),
+    ("shortcut_settings", "tray.shortcut_settings", None),
+    ("check_update", "tray.check_update", None),
+    ("about", "tray.about", None),
+    ("quit", "tray.quit", None),
+];
 
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
-    let capture_region = MenuItem::with_id(
-        app,
-        "capture_region",
-        with_key(app, CAPTURE_REGION, "trigger-capture-region"),
-        true,
-        None::<&str>,
-    )?;
-    let capture_full = MenuItem::with_id(
-        app,
-        "capture_full",
-        with_key(app, CAPTURE_FULL, "trigger-capture-full"),
-        true,
-        None::<&str>,
-    )?;
-    let record_region = MenuItem::with_id(
-        app,
-        "record_region",
-        with_key(app, RECORD_REGION, "trigger-record-region"),
-        true,
-        None::<&str>,
-    )?;
-    let record_full = MenuItem::with_id(
-        app,
-        "record_full",
-        with_key(app, RECORD_FULL, "trigger-record-full"),
-        true,
-        None::<&str>,
-    )?;
-    // Keep the items so their shortcut labels follow changes in settings.
-    shortcuts::attach_tray_items(
-        app,
-        vec![
-            ("trigger-capture-region", capture_region.clone(), CAPTURE_REGION),
-            ("trigger-capture-full", capture_full.clone(), CAPTURE_FULL),
-            ("trigger-record-region", record_region.clone(), RECORD_REGION),
-            ("trigger-record-full", record_full.clone(), RECORD_FULL),
-        ],
-    );
-    let stop_record = MenuItem::with_id(app, "stop_record", "⏹  Dừng quay", true, None::<&str>)?;
-    let open_window = MenuItem::with_id(app, "open_window", "🪟  Mở cửa sổ", true, None::<&str>)?;
-    let settings = MenuItem::with_id(
-        app,
-        "shortcut_settings",
-        "⌨️  Cài đặt phím tắt",
-        true,
-        None::<&str>,
-    )?;
-    let check_update = MenuItem::with_id(
-        app,
-        "check_update",
-        "🔄  Kiểm tra cập nhật",
-        true,
-        None::<&str>,
-    )?;
-    let about = MenuItem::with_id(app, "about", "ℹ️  Giới thiệu", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Thoát", true, None::<&str>)?;
-
-    let menu = Menu::with_items(
-        app,
-        &[
-            &capture_region,
-            &capture_full,
-            &record_region,
-            &record_full,
-            &stop_record,
-            &open_window,
-            &settings,
-            &check_update,
-            &about,
-            &quit,
-        ],
-    )?;
+    let mut items = Vec::with_capacity(ITEMS.len());
+    for (id, key, event) in ITEMS {
+        let text = shortcuts::tray_text(app, key, event);
+        items.push((MenuItem::with_id(app, id, text, true, None::<&str>)?, key, event));
+    }
+    let refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
+        items.iter().map(|(item, _, _)| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>).collect();
+    let menu = Menu::with_items(app, &refs)?;
+    // Keep every item so its label follows language and shortcut changes.
+    shortcuts::attach_tray_items(app, items);
 
     let _tray = TrayIconBuilder::with_id("main")
         .title("Screenshot Tool")

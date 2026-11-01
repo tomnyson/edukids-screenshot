@@ -92,7 +92,7 @@ fn parse_avfoundation_screens(text: &str) -> Vec<RecordingScreen> {
                 screens.push(RecordingScreen {
                     device_index: device_index.to_string(),
                     label: display_number
-                        .map(|number| format!("Màn hình {}", number))
+                        .map(|number| format!("Screen {}", number))
                         .unwrap_or_else(|| raw_label.to_string()),
                 });
             }
@@ -645,11 +645,21 @@ pub fn check_ffmpeg_installed(app: AppHandle) -> bool {
 pub fn list_recording_screens(app: AppHandle) -> Result<Vec<RecordingScreen>, String> {
     if cfg!(target_os = "macos") {
         let ffmpeg = get_ffmpeg_path(&app).ok_or("FFmpeg is not installed")?;
-        avfoundation_screens(&ffmpeg)
+        let lang = crate::i18n::current(&app);
+        avfoundation_screens(&ffmpeg).map(|screens| {
+            screens
+                .into_iter()
+                .enumerate()
+                .map(|(i, mut s)| {
+                    s.label = crate::i18n::trf(lang, "screen.numbered", &[&(i + 1)]);
+                    s
+                })
+                .collect()
+        })
     } else {
         Ok(vec![RecordingScreen {
             device_index: "desktop".to_string(),
-            label: "Toàn bộ màn hình".to_string(),
+            label: crate::i18n::tr(crate::i18n::current(&app), "screen.whole").to_string(),
         }])
     }
 }
@@ -674,7 +684,7 @@ pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
     if cfg!(target_os = "windows") {
         let data_dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
         std::fs::create_dir_all(&data_dir)
-            .map_err(|e| format!("Không thể tạo cấu trúc thư mục AppData: {}", e))?;
+            .map_err(|e| crate::i18n::trf(crate::i18n::current(&app), "ffmpeg.appdata_failed", &[&e]))?;
 
         let target_exe = data_dir.join("ffmpeg.exe");
 
@@ -712,18 +722,15 @@ pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
         let output = new_command("powershell")
             .args(["-NoProfile", "-NonInteractive", "-Command", &script])
             .output()
-            .map_err(|e| format!("Lỗi khởi chạy tiến trình cấp quyền: {}", e))?;
+            .map_err(|e| crate::i18n::trf(crate::i18n::current(&app), "ffmpeg.launch_failed", &[&e]))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         if output.status.success() {
-            Ok("Hệ thống đã tự thiết lập FFmpeg thành công! ✓".to_string())
+            Ok(crate::i18n::tr(crate::i18n::current(&app), "ffmpeg.installed_win").to_string())
         } else {
-            Err(format!(
-                "Quá trình cài đặt ngầm thất bại/bị từ chối quyền:\n{}\n{}",
-                stdout, stderr
-            ))
+            Err(crate::i18n::trf(crate::i18n::current(&app), "ffmpeg.install_failed", &[&stdout, &stderr]))
         }
     } else {
         let brew_path = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
@@ -735,7 +742,7 @@ pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
             Some(p) => p,
             None => {
                 return Err(
-                    "Homebrew chưa được cài đặt. Hệ thống macOS cần theo chuẩn lệnh.".to_string(),
+                    crate::i18n::tr(crate::i18n::current(&app), "ffmpeg.no_brew").to_string(),
                 )
             }
         };
@@ -743,12 +750,12 @@ pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
         let output = new_command(&brew_cmd)
             .args(["install", "ffmpeg"])
             .output()
-            .map_err(|e| format!("Lỗi truy xuất brew: {}", e))?;
+            .map_err(|e| crate::i18n::trf(crate::i18n::current(&app), "ffmpeg.brew_failed", &[&e]))?;
 
         if output.status.success() {
-            Ok("FFmpeg đã được tải xuống và cấu hình! ✓".to_string())
+            Ok(crate::i18n::tr(crate::i18n::current(&app), "ffmpeg.installed_mac").to_string())
         } else {
-            Err("Cài đặt brew framework thất bại. Vui lòng chạy lệnh gốc tại terminal.".to_string())
+            Err(crate::i18n::tr(crate::i18n::current(&app), "ffmpeg.brew_install_failed").to_string())
         }
     }
 }
@@ -920,9 +927,9 @@ mod tests {
 
         assert_eq!(screens.len(), 2);
         assert_eq!(screens[0].device_index, "1");
-        assert_eq!(screens[0].label, "Màn hình 1");
+        assert_eq!(screens[0].label, "Screen 1");
         assert_eq!(screens[1].device_index, "2");
-        assert_eq!(screens[1].label, "Màn hình 2");
+        assert_eq!(screens[1].label, "Screen 2");
         assert_eq!(
             select_avfoundation_screen(&screens, Some("2")).unwrap(),
             "2"

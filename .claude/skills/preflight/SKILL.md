@@ -29,7 +29,9 @@ Run every check below from the repo root and report a pass/fail table at the end
 
 5. **FFmpeg sidecar naming** — `src-tauri/tauri.windows.conf.json` declares `externalBin: ["binaries/ffmpeg"]`. Tauri v2 needs `binaries/ffmpeg-x86_64-pc-windows-msvc.exe`. Confirm the Windows step in `.github/workflows/release.yml` copies to that exact name. Locally the file is optional (only needed for a local Windows `yarn build`).
 
-6. **TypeScript** — `npx tsc --noEmit -p .`
+6. **TypeScript** — `npx tsc --noEmit -p .` (also proves `src/i18n/en.ts` has every key of `vi.ts`).
+
+6b. **i18n** — `yarn check:i18n`: no hard-coded Vietnamese outside `src/i18n/`. New UI text goes into `src/i18n/vi.ts` and `en.ts` and is shown with `t()`; Rust-side text (tray, errors) goes into `src-tauri/src/i18n.rs`.
 
 7. **Web build** — `npx --yes yarn@1 build:web`
 

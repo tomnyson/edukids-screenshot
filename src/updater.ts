@@ -1,6 +1,7 @@
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { ask, message } from '@tauri-apps/plugin-dialog';
+import { tStatic as t } from './i18n';
 
 const TITLE = 'Edukids Screenshot';
 
@@ -21,15 +22,15 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
 
     if (!update) {
       if (!silent) {
-        await message('Bạn đang dùng phiên bản mới nhất.', { title: TITLE, kind: 'info' });
+        await message(t('update.upToDate'), { title: TITLE, kind: 'info' });
       }
       return;
     }
 
     const notes = update.body?.trim() ? `\n\n${update.body.trim()}` : '';
     const accepted = await ask(
-      `Đã có phiên bản ${update.version} (hiện tại: ${update.currentVersion}).\nCập nhật ngay?${notes}`,
-      { title: TITLE, kind: 'info', okLabel: 'Cập nhật', cancelLabel: 'Để sau' },
+      t('update.available', { version: update.version, current: update.currentVersion }) + notes,
+      { title: TITLE, kind: 'info', okLabel: t('update.install'), cancelLabel: t('update.later') },
     );
     if (!accepted) return;
 
@@ -39,7 +40,7 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
   } catch (err) {
     console.error('Update check failed:', err);
     if (!silent) {
-      await message(`Không thể kiểm tra cập nhật:\n${String(err)}`, {
+      await message(t('update.failed', { error: String(err) }), {
         title: TITLE,
         kind: 'error',
       }).catch(() => {});

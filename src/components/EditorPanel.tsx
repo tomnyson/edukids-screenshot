@@ -2,20 +2,21 @@ import { useState } from 'react';
 import { Undo2, Redo2, Trash2, Copy, Download, ImagePlus, Check } from 'lucide-react';
 import { ASPECT_RATIOS, type BackgroundOption } from './CanvasEditor';
 import { isMac } from '../hooks/useShortcutLabels';
+import { useT, type Key } from '../i18n';
 
 // Background presets are user content (they are drawn into the exported image),
 // so gradients are allowed here; the app chrome itself stays flat.
-type BgPreset = { label: string; bg: BackgroundOption; preview: string };
+type BgPreset = { label: Key; bg: BackgroundOption; preview: string };
 const BG_PRESETS: BgPreset[] = [
-  { label: 'Không nền', bg: { type: 'none' }, preview: 'repeating-conic-gradient(#3a4256 0% 25%, #232a3b 0% 50%) 0 0 / 10px 10px' },
-  { label: 'Bầu trời EduKids', bg: { type: 'gradient', stops: ['#1e3a8a', '#2563eb'], angle: 135 }, preview: 'linear-gradient(135deg,#1e3a8a,#2563eb)' },
-  { label: 'Đại dương', bg: { type: 'gradient', stops: ['#667eea', '#764ba2'], angle: 135 }, preview: 'linear-gradient(135deg,#667eea,#764ba2)' },
-  { label: 'Hoàng hôn', bg: { type: 'gradient', stops: ['#FF6B6B', '#FFE66D'], angle: 135 }, preview: 'linear-gradient(135deg,#FF6B6B,#FFE66D)' },
-  { label: 'Bạc hà', bg: { type: 'gradient', stops: ['#11998e', '#38ef7d'], angle: 135 }, preview: 'linear-gradient(135deg,#11998e,#38ef7d)' },
-  { label: 'Đào', bg: { type: 'gradient', stops: ['#f093fb', '#f5576c'], angle: 135 }, preview: 'linear-gradient(135deg,#f093fb,#f5576c)' },
-  { label: 'Trời xanh', bg: { type: 'gradient', stops: ['#4facfe', '#00f2fe'], angle: 135 }, preview: 'linear-gradient(135deg,#4facfe,#00f2fe)' },
-  { label: 'Đêm', bg: { type: 'gradient', stops: ['#0f0c29', '#302b63', '#24243e'], angle: 135 }, preview: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)' },
-  { label: 'Trắng', bg: { type: 'solid', color: '#ffffff' }, preview: '#ffffff' },
+  { label: 'panel.bg.none', bg: { type: 'none' }, preview: 'repeating-conic-gradient(#3a4256 0% 25%, #232a3b 0% 50%) 0 0 / 10px 10px' },
+  { label: 'panel.bg.edukids', bg: { type: 'gradient', stops: ['#1e3a8a', '#2563eb'], angle: 135 }, preview: 'linear-gradient(135deg,#1e3a8a,#2563eb)' },
+  { label: 'panel.bg.ocean', bg: { type: 'gradient', stops: ['#667eea', '#764ba2'], angle: 135 }, preview: 'linear-gradient(135deg,#667eea,#764ba2)' },
+  { label: 'panel.bg.sunset', bg: { type: 'gradient', stops: ['#FF6B6B', '#FFE66D'], angle: 135 }, preview: 'linear-gradient(135deg,#FF6B6B,#FFE66D)' },
+  { label: 'panel.bg.mint', bg: { type: 'gradient', stops: ['#11998e', '#38ef7d'], angle: 135 }, preview: 'linear-gradient(135deg,#11998e,#38ef7d)' },
+  { label: 'panel.bg.peach', bg: { type: 'gradient', stops: ['#f093fb', '#f5576c'], angle: 135 }, preview: 'linear-gradient(135deg,#f093fb,#f5576c)' },
+  { label: 'panel.bg.sky', bg: { type: 'gradient', stops: ['#4facfe', '#00f2fe'], angle: 135 }, preview: 'linear-gradient(135deg,#4facfe,#00f2fe)' },
+  { label: 'panel.bg.night', bg: { type: 'gradient', stops: ['#0f0c29', '#302b63', '#24243e'], angle: 135 }, preview: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)' },
+  { label: 'panel.bg.white', bg: { type: 'solid', color: '#ffffff' }, preview: '#ffffff' },
 ];
 
 function sameBg(a: BackgroundOption, b: BackgroundOption) {
@@ -27,9 +28,9 @@ function sameBg(a: BackgroundOption, b: BackgroundOption) {
   return false;
 }
 
-function bgName(bg: BackgroundOption) {
-  if (bg.type === 'image') return 'Ảnh của bạn';
-  return BG_PRESETS.find((p) => sameBg(p.bg, bg))?.label ?? 'Tuỳ chỉnh';
+function bgName(bg: BackgroundOption): Key {
+  if (bg.type === 'image') return 'panel.bg.yours';
+  return BG_PRESETS.find((p) => sameBg(p.bg, bg))?.label ?? 'panel.bg.custom';
 }
 
 function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
@@ -54,7 +55,8 @@ interface EditorPanelProps {
 
 /** Right panel: how the picture is framed, history, and the two ways out (copy, save). */
 export default function EditorPanel(p: EditorPanelProps) {
-  const [ratio, setRatio] = useState('Gốc');
+  const t = useT();
+  const [ratio, setRatio] = useState('original');
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const mod = isMac ? '⌘' : 'Ctrl+';
@@ -77,13 +79,13 @@ export default function EditorPanel(p: EditorPanelProps) {
 
   return (
     <aside
-      aria-label="Tuỳ chọn ảnh"
+      aria-label={t('panel.aria')}
       className="w-[276px] flex-shrink-0 border-l flex flex-col"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
     >
       <div className="flex-1 overflow-y-auto p-5 space-y-7">
         <section>
-          <SectionTitle aside={bgName(p.background)}>Nền ảnh</SectionTitle>
+          <SectionTitle aside={t(bgName(p.background))}>{t('panel.background')}</SectionTitle>
           <div className="grid grid-cols-5 gap-2">
             {BG_PRESETS.map((preset) => {
               const active = sameBg(p.background, preset.bg);
@@ -91,8 +93,8 @@ export default function EditorPanel(p: EditorPanelProps) {
                 <button
                   key={preset.label}
                   type="button"
-                  title={preset.label}
-                  aria-label={preset.label}
+                  title={t(preset.label)}
+                  aria-label={t(preset.label)}
                   aria-pressed={active}
                   onClick={() => p.onBackground(preset.bg)}
                   className="aspect-square rounded-[10px] cursor-pointer"
@@ -105,8 +107,8 @@ export default function EditorPanel(p: EditorPanelProps) {
             })}
             <button
               type="button"
-              title="Dùng ảnh của bạn làm nền"
-              aria-label="Dùng ảnh của bạn làm nền"
+              title={t('panel.bg.pick')}
+              aria-label={t('panel.bg.pick')}
               aria-pressed={p.background.type === 'image'}
               onClick={pickImage}
               className="aspect-square rounded-[10px] grid place-items-center cursor-pointer text-[var(--muted)] hover:text-[var(--text)] bg-[var(--raised)] hover:bg-[var(--hover)]"
@@ -118,7 +120,7 @@ export default function EditorPanel(p: EditorPanelProps) {
         </section>
 
         <section>
-          <SectionTitle aside={ratio === 'Gốc' ? 'Theo ảnh chụp' : ratio}>Khung hình</SectionTitle>
+          <SectionTitle aside={ratio === 'original' ? t('panel.frameFollow') : ratio}>{t('panel.frame')}</SectionTitle>
           <div className="grid grid-cols-4 gap-2">
             {ASPECT_RATIOS.map((ar) => {
               const active = ratio === ar.label;
@@ -134,7 +136,7 @@ export default function EditorPanel(p: EditorPanelProps) {
                     ${active ? 'bg-[var(--active)] text-[var(--text)]' : 'bg-[var(--raised)] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]'}`}
                 >
                   <span className="rounded-[3px]" style={{ width: w, height: h, border: `1.5px solid ${active ? 'var(--accent)' : 'currentColor'}`, borderStyle: ar.value ? 'solid' : 'dashed' }} />
-                  {ar.label}
+                  {ar.value ? ar.label : t('panel.frameOriginal')}
                 </button>
               );
             })}
@@ -142,12 +144,12 @@ export default function EditorPanel(p: EditorPanelProps) {
         </section>
 
         <section>
-          <SectionTitle>Chỉnh sửa</SectionTitle>
+          <SectionTitle>{t('panel.edit')}</SectionTitle>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: 'Hoàn tác', title: `Hoàn tác (${mod}Z)`, icon: Undo2, on: p.onUndo },
-              { label: 'Làm lại', title: `Làm lại (${mod}Y)`, icon: Redo2, on: p.onRedo },
-              { label: 'Xoá nét vẽ', title: 'Xoá mọi nét vẽ, giữ ảnh gốc', icon: Trash2, on: p.onClear },
+              { label: t('panel.undo'), title: t('panel.undoTitle', { key: mod }), icon: Undo2, on: p.onUndo },
+              { label: t('panel.redo'), title: t('panel.redoTitle', { key: mod }), icon: Redo2, on: p.onRedo },
+              { label: t('panel.clear'), title: t('panel.clearTitle'), icon: Trash2, on: p.onClear },
             ].map((b) => {
               const Icon = b.icon;
               return (
@@ -168,17 +170,17 @@ export default function EditorPanel(p: EditorPanelProps) {
           onClick={async () => { if (await p.onCopy()) flash(setCopied); }}
           className="w-full h-11 rounded-full flex items-center justify-center gap-2 text-[15px] font-semibold cursor-pointer border bg-[var(--raised)] hover:bg-[var(--hover)] border-[var(--control)]"
         >
-          {copied ? <><Check size={18} className="text-[var(--positive)]" /> Đã sao chép</> : <><Copy size={17} /> Sao chép ảnh</>}
+          {copied ? <><Check size={18} className="text-[var(--positive)]" /> {t('panel.copied')}</> : <><Copy size={17} /> {t('panel.copy')}</>}
         </button>
         <button
           type="button"
           onClick={async () => { if (await p.onSave()) flash(setSaved); }}
           className="w-full h-11 rounded-full flex items-center justify-center gap-2 text-[15px] font-bold cursor-pointer text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
         >
-          {saved ? <><Check size={18} /> Đã lưu</> : <><Download size={17} /> Lưu ảnh</>}
+          {saved ? <><Check size={18} /> {t('panel.saved')}</> : <><Download size={17} /> {t('panel.save')}</>}
         </button>
         <p className="text-[12px] text-center text-[var(--faint)]">
-          {copied ? 'Dán vào Zalo, Word, Canva… bằng ' + (isMac ? '⌘V' : 'Ctrl+V') : `Lưu nhanh: ${mod}S`}
+          {copied ? t('panel.pasteHint', { key: isMac ? '⌘V' : 'Ctrl+V' }) : t('panel.saveHint', { key: mod })}
         </p>
       </div>
     </aside>

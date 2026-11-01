@@ -13,6 +13,7 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::i18n::{self, tr, trf, Lang};
 use crate::recording::{get_ffmpeg_path, new_command};
 
 pub const MIN_SPEED: f64 = 0.5;
@@ -58,12 +59,12 @@ pub fn output_duration(opts: &ExportOptions) -> f64 {
 }
 
 /// Build the ffmpeg argument list for an export. Pure, unit-tested.
-pub fn build_export_args(source: &str, dest: &str, opts: &ExportOptions) -> Result<Vec<String>, String> {
+pub fn build_export_args(source: &str, dest: &str, opts: &ExportOptions, lang: Lang) -> Result<Vec<String>, String> {
     if !(opts.start >= 0.0) || !(opts.end > opts.start + 0.05) {
-        return Err(format!("Khoảng cắt không hợp lệ ({:.2}s → {:.2}s)", opts.start, opts.end));
+        return Err(trf(lang, "export.bad_range", &[&format!("{:.2}", opts.start), &format!("{:.2}", opts.end)]));
     }
     if !(MIN_SPEED..=MAX_SPEED).contains(&opts.speed) {
-        return Err(format!("Tốc độ phải trong khoảng {MIN_SPEED}x–{MAX_SPEED}x"));
+        return Err(trf(lang, "export.bad_speed", &[&MIN_SPEED, &MAX_SPEED]));
     }
     let speed_changed = (opts.speed - 1.0).abs() > 1e-6;
     let setpts = format!("setpts=PTS/{}", speed_str(opts.speed));
@@ -134,7 +135,7 @@ pub fn build_export_args(source: &str, dest: &str, opts: &ExportOptions) -> Resu
                 "gif".into(),
             ]);
         }
-        other => return Err(format!("Định dạng không hỗ trợ: {other}")),
+        other => return Err(trf(lang, "export.bad_format", &[&other])),
     }
 
     args.push(dest.into());
@@ -165,14 +166,15 @@ pub async fn export_recording(
     dest_path: String,
     options: ExportOptions,
 ) -> Result<(), String> {
-    let ffmpeg = get_ffmpeg_path(&app).ok_or("FFmpeg is not installed")?;
+    let lang = i18n::current(&app);
+    let ffmpeg = get_ffmpeg_path(&app).ok_or_else(|| tr(lang, "ffmpeg.missing").to_string())?;
     if !std::path::Path::new(&source_path).exists() {
-        return Err("Không tìm thấy file video gốc".into());
+        return Err(tr(lang, "export.no_source").into());
     }
     if std::path::Path::new(&source_path) == std::path::Path::new(&dest_path) {
-        return Err("Nơi lưu phải khác file gốc".into());
+        return Err(tr(lang, "export.same_path").into());
     }
-    let args = build_export_args(&source_path, &dest_path, &options)?;
+    let args = build_export_args(&source_path, &dest_path, &options, lang)?;
     let total = output_duration(&options).max(0.001);
 
     tauri::async_runtime::spawn_blocking(move || run_export(&app, &ffmpeg, &args, total, &dest_path))
@@ -195,7 +197,7 @@ fn run_export(app: &AppHandle, ffmpeg: &str, args: &[String], total: f64, dest: 
         .stdout(Stdio::piped())
         .stderr(stderr)
         .spawn()
-        .map_err(|e| format!("Không chạy được ffmpeg: {e}"))?;
+        .map_err(|e| trf(i18n::current(app), "export.spawn_failed", &[&e]))?;
     let stdout = child.stdout.take();
     {
         let mut slot = state.child.lock().map_err(|e| e.to_string())?;
@@ -215,23 +217,24 @@ fn run_export(app: &AppHandle, ffmpeg: &str, args: &[String], total: f64, dest: 
         let mut slot = state.child.lock().map_err(|e| e.to_string())?;
         match slot.take() {
             Some(mut c) => c.wait().map_err(|e| e.to_string())?,
-            None => return Err("Tiến trình xuất đã mất".into()),
+            None => return Err(tr(i18n::current(app), "export.lost").into()),
         }
     };
 
     if state.cancelled.swap(false, Ordering::SeqCst) {
         std::fs::remove_file(dest).ok();
-        return Err("Đã huỷ".into());
+        // A fixed code, not a sentence: the frontend recognises it in any language.
+        return Err("CANCELLED".into());
     }
     if !status.success() {
         std::fs::remove_file(dest).ok();
         let log = std::fs::read_to_string(&log_path).unwrap_or_default();
-        return Err(format!("ffmpeg lỗi ({status}):\n{}", tail(&log, 6)));
+        return Err(trf(i18n::current(app), "export.ffmpeg_failed", &[&status, &tail(&log, 6)]));
     }
     let size = std::fs::metadata(dest).map(|m| m.len()).unwrap_or(0);
     if size == 0 {
         std::fs::remove_file(dest).ok();
-        return Err("File xuất ra bị rỗng".into());
+        return Err(tr(i18n::current(app), "export.empty").into());
     }
     app.emit("export-progress", 1.0_f64).ok();
     Ok(())
@@ -262,7 +265,7 @@ mod tests {
 
     #[test]
     fn mp4_trim_only_keeps_audio_without_filters() {
-        let a = build_export_args("in.mp4", "out.mp4", &opts(1.0, 3.5, 1.0, false, "mp4")).unwrap();
+        let a = build_export_args("in.mp4", "out.mp4", &opts(1.0, 3.5, 1.0, false, "mp4"), Lang::Vi).unwrap();
         let s = joined(&a);
         assert!(s.contains("-ss 1.000 -to 3.500 -i in.mp4"));
         assert!(s.contains("-map 0:a:0?"));
@@ -275,7 +278,7 @@ mod tests {
 
     #[test]
     fn mp4_speed_and_mute() {
-        let a = build_export_args("in.mp4", "out.mp4", &opts(0.0, 4.0, 2.0, true, "mp4")).unwrap();
+        let a = build_export_args("in.mp4", "out.mp4", &opts(0.0, 4.0, 2.0, true, "mp4"), Lang::Vi).unwrap();
         let s = joined(&a);
         assert!(s.contains("-vf setpts=PTS/2"));
         assert!(s.contains("-an"));
@@ -285,7 +288,7 @@ mod tests {
 
     #[test]
     fn mp4_speed_with_audio_uses_atempo() {
-        let a = build_export_args("in.mp4", "out.mp4", &opts(0.0, 4.0, 0.75, false, "mp4")).unwrap();
+        let a = build_export_args("in.mp4", "out.mp4", &opts(0.0, 4.0, 0.75, false, "mp4"), Lang::Vi).unwrap();
         let s = joined(&a);
         assert!(s.contains("-vf setpts=PTS/0.75"));
         assert!(s.contains("-af atempo=0.75"));
@@ -293,7 +296,7 @@ mod tests {
 
     #[test]
     fn gif_uses_palette_and_no_audio() {
-        let a = build_export_args("in.mp4", "out.gif", &opts(0.5, 2.5, 1.5, false, "gif")).unwrap();
+        let a = build_export_args("in.mp4", "out.gif", &opts(0.5, 2.5, 1.5, false, "gif"), Lang::Vi).unwrap();
         let s = joined(&a);
         assert!(s.contains("setpts=PTS/1.5,fps=12,scale=min(960\\,iw):-1:flags=lanczos"));
         assert!(s.contains("palettegen"));
@@ -304,9 +307,9 @@ mod tests {
 
     #[test]
     fn rejects_bad_input() {
-        assert!(build_export_args("i", "o", &opts(3.0, 2.0, 1.0, false, "mp4")).is_err());
-        assert!(build_export_args("i", "o", &opts(0.0, 2.0, 3.0, false, "mp4")).is_err());
-        assert!(build_export_args("i", "o", &opts(0.0, 2.0, 1.0, false, "webm")).is_err());
+        assert!(build_export_args("i", "o", &opts(3.0, 2.0, 1.0, false, "mp4"), Lang::Vi).is_err());
+        assert!(build_export_args("i", "o", &opts(0.0, 2.0, 3.0, false, "mp4"), Lang::Vi).is_err());
+        assert!(build_export_args("i", "o", &opts(0.0, 2.0, 1.0, false, "webm"), Lang::Vi).is_err());
     }
 
     #[test]

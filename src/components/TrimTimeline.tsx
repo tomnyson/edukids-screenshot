@@ -1,4 +1,5 @@
 import { useRef, useCallback } from 'react';
+import { useT } from '../i18n';
 
 interface TrimTimelineProps {
   duration: number;
@@ -21,6 +22,7 @@ export function formatTime(t: number): string {
 
 /** Timeline with two drag handles (trim start / end) and a playhead. */
 export default function TrimTimeline({ duration, start, end, current, onChange, onSeek, disabled }: TrimTimelineProps) {
+  const tr = useT();
   const trackRef = useRef<HTMLDivElement>(null);
   const pct = (t: number) => (duration > 0 ? (t / duration) * 100 : 0);
 
@@ -71,11 +73,11 @@ export default function TrimTimeline({ duration, start, end, current, onChange, 
     <div
       role="slider"
       tabIndex={disabled ? -1 : 0}
-      aria-label={which === 'start' ? 'Điểm bắt đầu' : 'Điểm kết thúc'}
+      aria-label={which === 'start' ? tr('trim.start') : tr('trim.end')}
       aria-valuemin={0}
       aria-valuemax={duration}
       aria-valuenow={t}
-      title={`${which === 'start' ? 'Bắt đầu' : 'Kết thúc'}: ${formatTime(t)} (kéo, hoặc ← → / Shift để nhảy 1s)`}
+      title={`${which === 'start' ? tr('trim.startShort') : tr('trim.endShort')}: ${formatTime(t)} ${tr('trim.help')}`}
       onPointerDown={drag(which)}
       onKeyDown={nudge(which)}
       className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-8 rounded-md bg-[var(--accent)] border-2 border-white

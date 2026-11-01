@@ -22,7 +22,9 @@ pub enum OverlayMode {
 pub struct OverlayState(pub Mutex<OverlayCaptureState>);
 
 mod commands;
+mod i18n;
 mod recording;
+mod settings;
 mod shortcuts;
 mod tray;
 mod video_edit;
@@ -34,6 +36,7 @@ pub fn run() {
         .manage(recording::RecordingState::default())
         .manage(shortcuts::ShortcutsState::default())
         .manage(video_edit::ExportState::default())
+        .manage(settings::SettingsState::default())
         // Must be the first plugin: a second launch exits immediately and
         // instead brings the already-running instance's window to the front
         // (prevents duplicate tray icons / global-shortcut conflicts).
@@ -61,6 +64,8 @@ pub fn run() {
 
             // Register global shortcuts (defaults + user overrides) first so
             // the tray shows the real keys.
+            // The saved interface language first: the tray is labelled from it.
+            settings::load(&handle);
             shortcuts::register_all(&handle);
             tray::setup_tray(&handle)?;
 
@@ -103,6 +108,8 @@ pub fn run() {
             commands::close_overlay,
             commands::get_overlay_mode,
             // Recording commands
+            settings::get_language,
+            settings::set_language,
             video_edit::export_recording,
             video_edit::cancel_export,
             shortcuts::get_shortcut_labels,
