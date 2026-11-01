@@ -11,6 +11,19 @@ use std::time::{Duration, Instant};
 use base64::Engine;
 use tauri::{AppHandle, Emitter, Manager};
 
+/// Build a Command that never flashes a console window on Windows
+/// (release builds run without a console, so children would get their own).
+fn new_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
+
 // ── State ────────────────────────────────────────────────────────────────────
 
 #[derive(Default)]
@@ -90,7 +103,7 @@ fn parse_avfoundation_screens(text: &str) -> Vec<RecordingScreen> {
 }
 
 fn avfoundation_screens(ffmpeg: &str) -> Result<Vec<RecordingScreen>, String> {
-    let output = Command::new(ffmpeg)
+    let output = new_command(ffmpeg)
         .args(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
         .output()
         .map_err(|error| format!("Failed to list recording screens: {}", error))?;
@@ -134,7 +147,7 @@ fn avfoundation_screen_index(ffmpeg: &str) -> String {
 /// if detection fails or no audio device exists, so recording can gracefully
 /// fall back to video-only instead of breaking.
 fn avfoundation_audio_index(ffmpeg: &str) -> Option<String> {
-    let output = Command::new(ffmpeg)
+    let output = new_command(ffmpeg)
         .args(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
         .output()
         .ok()?;
@@ -191,7 +204,7 @@ fn avfoundation_audio_index(ffmpeg: &str) -> Option<String> {
 /// Returns `None` if detection fails or no audio device exists, so recording
 /// can gracefully fall back to video-only instead of breaking.
 fn dshow_audio_device(ffmpeg: &str) -> Option<String> {
-    let output = Command::new(ffmpeg)
+    let output = new_command(ffmpeg)
         .args(["-list_devices", "true", "-f", "dshow", "-i", "dummy"])
         .output()
         .ok()?;
@@ -283,7 +296,7 @@ fn stop_child_gracefully(child: &mut Child) -> Result<(), String> {
     #[cfg(unix)]
     {
         // Resume a paused recorder so it can read the quit command.
-        let _ = Command::new("/bin/kill")
+        let _ = new_command("/bin/kill")
             .args(["-s", "CONT", &child.id().to_string()])
             .status();
     }
@@ -501,7 +514,7 @@ fn spawn_recording_process(
         .map(Stdio::from)
         .unwrap_or_else(|_| Stdio::null());
 
-    Command::new(ffmpeg)
+    new_command(ffmpeg)
         .args(args)
         .stdin(Stdio::piped())
         .stdout(if with_preview {
@@ -588,7 +601,7 @@ fn get_ffmpeg_path(app: &AppHandle) -> Option<String> {
         }
     }
 
-    if let Ok(output) = Command::new("which").arg("ffmpeg").output() {
+    if let Ok(output) = new_command("which").arg("ffmpeg").output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !path.is_empty() && std::path::Path::new(&path).exists() {
@@ -597,7 +610,7 @@ fn get_ffmpeg_path(app: &AppHandle) -> Option<String> {
         }
     }
 
-    if let Ok(output) = Command::new("where").arg("ffmpeg").output() {
+    if let Ok(output) = new_command("where").arg("ffmpeg").output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
             let first_path = path.lines().next().unwrap_or("").trim().to_string();
@@ -607,7 +620,7 @@ fn get_ffmpeg_path(app: &AppHandle) -> Option<String> {
         }
     }
 
-    if Command::new("ffmpeg")
+    if new_command("ffmpeg")
         .arg("-version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -696,7 +709,7 @@ pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
             target_exe.to_string_lossy()
         );
 
-        let output = Command::new("powershell")
+        let output = new_command("powershell")
             .args(["-NoProfile", "-NonInteractive", "-Command", &script])
             .output()
             .map_err(|e| format!("Lỗi khởi chạy tiến trình cấp quyền: {}", e))?;
@@ -727,7 +740,7 @@ pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
             }
         };
 
-        let output = Command::new(&brew_cmd)
+        let output = new_command(&brew_cmd)
             .args(["install", "ffmpeg"])
             .output()
             .map_err(|e| format!("Lỗi truy xuất brew: {}", e))?;
@@ -927,7 +940,7 @@ mod tests {
             std::process::id()
         ));
         let log = output.with_extension("log");
-        let mut child = Command::new("/bin/sh")
+        let mut child = new_command("/bin/sh")
             .args([
                 "-c",
                 "sleep 0.1; printf ready > \"$1\"; read command; test \"$command\" = q",
@@ -957,7 +970,7 @@ mod tests {
             std::process::id()
         ));
         let log = output.with_extension("log");
-        let mut child = Command::new("/bin/sleep")
+        let mut child = new_command("/bin/sleep")
             .arg("30")
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
@@ -983,7 +996,7 @@ mod tests {
             std::process::id()
         ));
         let log = output.with_extension("log");
-        let mut child = Command::new("/bin/sh")
+        let mut child = new_command("/bin/sh")
             .args([
                 "-c",
                 "printf partial > \"$1\"; exit 7",
@@ -1140,7 +1153,7 @@ pub fn pause_recording(app: AppHandle) -> Result<(), String> {
         return Err("Pause is not supported on Windows".to_string());
     }
 
-    let status = Command::new("/bin/kill")
+    let status = new_command("/bin/kill")
         .args(["-s", "STOP", &pid.to_string()])
         .status()
         .map_err(|error| format!("Failed to pause recording: {}", error))?;
@@ -1166,7 +1179,7 @@ pub fn resume_recording(app: AppHandle) -> Result<(), String> {
         return Err("Resume is not supported on Windows".to_string());
     }
 
-    let status = Command::new("/bin/kill")
+    let status = new_command("/bin/kill")
         .args(["-s", "CONT", &pid.to_string()])
         .status()
         .map_err(|error| format!("Failed to resume recording: {}", error))?;
