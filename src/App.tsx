@@ -13,6 +13,8 @@ import RecordingScreenPicker, { type RecordingScreen } from './components/Record
 import AppLogo from './components/AppLogo';
 import edukidsLogo from './assets/edukids-logo.png';
 import { fetchImage } from './idb';
+import { checkForUpdates } from './updater';
+import { getVersion } from '@tauri-apps/api/app';
 import './index.css';
 
 type AppState = 'idle' | 'no-permission' | 'has-image';
@@ -30,6 +32,17 @@ function MainApp() {
     angle: 135,
   });
   const [showAbout, setShowAbout] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+    if (import.meta.env.DEV) return;
+    // Silent background update check shortly after launch.
+    const timer = window.setTimeout(() => {
+      void checkForUpdates({ silent: true });
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // ── Recording state ──
   const [isRecording, setIsRecording] = useState(false);
@@ -222,6 +235,10 @@ function MainApp() {
       );
       await register('show-about', () => setShowAbout(true)
       );
+      await register('trigger-check-update', () => {
+          void checkForUpdates({ silent: false });
+        }
+      );
     };
 
     // Clipboard paste → load image directly into editor
@@ -355,7 +372,13 @@ function MainApp() {
           >
             <img src={edukidsLogo} alt="Edukids Logo" className="w-20 h-20 mx-auto mb-3 object-contain" />
             <h2 className="text-lg font-bold text-white mb-1">Edukids Screenshot</h2>
-            <p className="text-gray-400 text-sm mb-4">Version 1.0.0</p>
+            <p className="text-gray-400 text-sm mb-2">Version {appVersion || '…'}</p>
+            <button
+              onClick={() => void checkForUpdates({ silent: false })}
+              className="mb-4 px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+            >
+              Kiểm tra cập nhật
+            </button>
             <div className="border-t border-gray-700 pt-4 space-y-1">
               <p className="text-gray-300 text-sm font-medium">Tác giả</p>
               <p className="text-white font-semibold">Lê Hồng Sơn</p>

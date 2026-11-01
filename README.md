@@ -103,6 +103,8 @@ src-tauri/target/release/bundle/dmg/Edukids Screenshot_1.0.0_aarch64.dmg
 
 > ⚠️ File Windows **phải được build trên Windows**. Không thể cross-compile từ macOS.
 
+Trước khi build, đặt FFmpeg vào `src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe`. Tauri yêu cầu hậu tố target-triple, đổi tên từ `ffmpeg.exe` [tải tại gyan.dev](https://www.gyan.dev/ffmpeg/builds/). Nếu chưa cấu hình khóa ký cập nhật, đặt biến môi trường `TAURI_SIGNING_PRIVATE_KEY` trước khi build.
+
 Trên máy Windows, chạy:
 
 ```bash
@@ -117,7 +119,45 @@ src-tauri/target/release/bundle/nsis/Edukids Screenshot_1.0.0_x64-setup.exe
 
 ### Build tự động qua GitHub Actions
 
-Push code lên GitHub → CI workflow `.github/workflows/build-windows.yml` tự chạy trên Windows runner và upload file cài đặt vào **Artifacts** tab.
+Workflow `.github/workflows/release.yml` build song song **Windows x64**, **macOS Apple Silicon (arm64)** và **macOS Intel (x64)**:
+
+- Push lên `main` (hoặc chạy tay trong tab Actions) → build và upload file cài đặt vào tab **Artifacts**.
+- Push tag `v*` → build, tạo **GitHub Release** kèm file cài đặt và `latest.json` cho tính năng tự cập nhật. Release ở dạng nháp và chỉ được công khai khi cả 3 bản build đều thành công.
+
+### 🔄 Tự động cập nhật (từ v1.1.0)
+
+Khi khởi động, app kiểm tra bản mới trên GitHub Releases. Nếu có bản mới, app hỏi **Cập nhật / Để sau**. Có thể kiểm tra thủ công qua menu tray **🔄 Kiểm tra cập nhật** hoặc nút trong màn hình **Giới thiệu**.
+
+> Các bản 1.0.x chưa có updater, nên người dùng cần cài tay bản 1.1.0 **một lần**.
+
+**Thiết lập một lần (khóa ký bản cập nhật):**
+
+```bash
+yarn tauri signer generate -w ~/.tauri/edukids.key
+```
+
+- Dán nội dung `~/.tauri/edukids.key.pub` vào `plugins.updater.pubkey` trong `src-tauri/tauri.conf.json`.
+- Thêm GitHub Secrets: `TAURI_SIGNING_PRIVATE_KEY` (nội dung file `~/.tauri/edukids.key`) và `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+- ⚠️ Giữ khóa riêng cẩn thận. Mất khóa thì các bản đã cài sẽ không nhận được cập nhật nữa.
+
+### 🏷️ Phát hành phiên bản mới
+
+1. Tăng version (ví dụ `1.1.1`) ở **cả 3 file**: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
+2. Commit, rồi tạo và push tag:
+   ```bash
+   git commit -am "release: v1.1.1"
+   git tag v1.1.1
+   git push origin main --tags
+   ```
+3. Chờ CI chạy xong. Release mới được công khai và app đã cài sẽ tự nhận bản cập nhật.
+
+### 🍎 Lưu ý cài đặt trên macOS (bản chưa ký Apple)
+
+Lần đầu mở app, nhấn chuột phải vào app → **Open**. Nếu macOS báo app "bị hỏng" (damaged), chạy:
+
+```bash
+xattr -cr "/Applications/Edukids Screenshot.app"
+```
 
 ---
 

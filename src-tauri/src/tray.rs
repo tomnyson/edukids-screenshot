@@ -37,6 +37,13 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     )?;
     let stop_record = MenuItem::with_id(app, "stop_record", "⏹  Dừng quay", true, None::<&str>)?;
     let open_window = MenuItem::with_id(app, "open_window", "🪟  Mở cửa sổ", true, None::<&str>)?;
+    let check_update = MenuItem::with_id(
+        app,
+        "check_update",
+        "🔄  Kiểm tra cập nhật",
+        true,
+        None::<&str>,
+    )?;
     let about = MenuItem::with_id(app, "about", "ℹ️  Giới thiệu", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Thoát", true, None::<&str>)?;
 
@@ -49,6 +56,7 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
             &record_full,
             &stop_record,
             &open_window,
+            &check_update,
             &about,
             &quit,
         ],
@@ -97,6 +105,12 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 if let Some(win) = app.get_webview_window("main") {
                     win.show().ok();
                     win.set_focus().ok();
+                }
+            }
+            "check_update" => {
+                // Native dialogs are used, so the window doesn't need to be shown.
+                if let Some(win) = app.get_webview_window("main") {
+                    win.emit("trigger-check-update", ()).ok();
                 }
             }
             "about" => {

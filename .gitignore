@@ -68,7 +68,9 @@ Desktop.ini
 # ── AI agent / tooling ─────────────────────────────────────────────
 .agent/
 .agents/
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/skills/**
 .omx/
 .cursor/
 .superdesign/

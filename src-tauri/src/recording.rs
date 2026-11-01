@@ -568,6 +568,19 @@ fn get_ffmpeg_path(app: &AppHandle) -> Option<String> {
         }
     }
 
+    // Bundled sidecar (Windows installer places ffmpeg.exe next to the app exe).
+    if cfg!(target_os = "windows") {
+        if let Some(exe_dir) = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        {
+            let sidecar = exe_dir.join("ffmpeg.exe");
+            if sidecar.exists() {
+                return Some(sidecar.to_string_lossy().into_owned());
+            }
+        }
+    }
+
     for path in KNOWN_FFMPEG_PATHS {
         let p = std::path::Path::new(path);
         if p.exists() {
