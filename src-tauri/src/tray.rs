@@ -1,37 +1,47 @@
 // tray.rs — System tray setup for Screenshot Tool
 
+use std::collections::HashMap;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager,
 };
 
-pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+/// "Chụp vùng" + label of the registered shortcut → "Chụp vùng  (Ctrl+Shift+2)"
+fn with_key(text: &str, labels: &HashMap<String, String>, event: &str) -> String {
+    match labels.get(event) {
+        Some(key) if !key.is_empty() => format!("{text}  ({key})"),
+        _ => text.to_string(),
+    }
+}
+
+pub fn setup_tray(app: &AppHandle, labels: &HashMap<String, String>) -> tauri::Result<()> {
     let capture_region = MenuItem::with_id(
         app,
         "capture_region",
-        "📷  Chụp vùng  (⌘⇧2)",
+        with_key("📷  Chụp vùng", labels, "trigger-capture-region"),
         true,
         None::<&str>,
     )?;
     let capture_full = MenuItem::with_id(
         app,
         "capture_full",
-        "🖥️  Chụp toàn màn hình  (⌘⇧3)",
+        with_key("🖥️  Chụp toàn màn hình", labels, "trigger-capture-full"),
         true,
         None::<&str>,
     )?;
     let record_region = MenuItem::with_id(
         app,
         "record_region",
-        "⏺  Quay vùng  (⌘⇧4)",
+        with_key("⏺  Quay vùng", labels, "trigger-record-region"),
         true,
         None::<&str>,
     )?;
     let record_full = MenuItem::with_id(
         app,
         "record_full",
-        "⏺  Quay toàn màn hình  (⌘⇧1)",
+        with_key("⏺  Quay toàn màn hình", labels, "trigger-record-full"),
         true,
         None::<&str>,
     )?;

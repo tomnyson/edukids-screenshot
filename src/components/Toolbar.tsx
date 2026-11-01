@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Camera, Crop, Save, Copy, Square, ArrowUpRight,
   PenTool, Type, Undo, Redo, Trash2, MousePointer2,
@@ -44,6 +45,15 @@ const ToolBtn = ({ icon: Icon, label, onClick, disabled = false, primary = false
 );
 
 const Sep = () => <div className="w-px h-6 bg-gray-700 mx-1" />;
+
+/** Shortcut labels actually registered by the backend (OS-specific, e.g. "Ctrl+Shift+2" / "⌘⇧2"). */
+function useShortcutLabels(): Record<string, string> {
+  const [labels, setLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    invoke<Record<string, string>>('get_shortcut_labels').then(setLabels).catch(() => {});
+  }, []);
+  return labels;
+}
 
 // ── Background presets ──────────────────────────────────────────────────────
 type BgPreset = { label: string; bg: BackgroundOption; preview: string };
@@ -210,6 +220,7 @@ function AspectRatioPicker({ onAspectRatio }: { onAspectRatio: (ratio: [number, 
 
 function RecordDropdown({ onRecordRegion, onRecordFull }: { onRecordRegion: () => void; onRecordFull: () => void }) {
   const [open, setOpen] = useState(false);
+  const keys = useShortcutLabels();
 
   return (
     <div className="relative">
@@ -233,7 +244,7 @@ function RecordDropdown({ onRecordRegion, onRecordFull }: { onRecordRegion: () =
           >
             <Crop size={14} />
             Quay vùng
-            <span className="ml-auto text-gray-500">⌘⇧4</span>
+            <span className="ml-auto pl-3 text-gray-500">{keys['trigger-record-region'] ?? ''}</span>
           </button>
           <button
             onClick={() => { onRecordFull(); setOpen(false); }}
@@ -241,7 +252,7 @@ function RecordDropdown({ onRecordRegion, onRecordFull }: { onRecordRegion: () =
           >
             <Camera size={14} />
             Quay toàn màn hình
-            <span className="ml-auto text-gray-500">⌘⇧1</span>
+            <span className="ml-auto pl-3 text-gray-500">{keys['trigger-record-full'] ?? ''}</span>
           </button>
         </div>
       )}

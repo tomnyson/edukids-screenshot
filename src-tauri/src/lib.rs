@@ -23,6 +23,7 @@ pub struct OverlayState(pub Mutex<OverlayCaptureState>);
 
 mod commands;
 mod recording;
+mod shortcuts;
 mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -30,6 +31,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState(Mutex::new(OverlayCaptureState::default())))
         .manage(recording::RecordingState::default())
+        .manage(shortcuts::ShortcutLabels::default())
         // Must be the first plugin: a second launch exits immediately and
         // instead brings the already-running instance's window to the front
         // (prevents duplicate tray icons / global-shortcut conflicts).
@@ -55,7 +57,15 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            tray::setup_tray(&handle)?;
+            // Register global shortcuts first so the tray shows the real keys.
+            let labels = shortcuts::register_all(&handle);
+            tray::setup_tray(&handle, &labels)?;
+            {
+                use tauri::Manager;
+                if let Ok(mut m) = app.state::<shortcuts::ShortcutLabels>().0.lock() {
+                    *m = labels;
+                }
+            }
 
             // Show the main window on launch so users can see the app started
             // (closing it still just hides it to the tray).
@@ -64,37 +74,6 @@ pub fn run() {
                 if let Some(win) = handle.get_webview_window("main") {
                     win.show().ok();
                     win.set_focus().ok();
-                }
-            }
-
-            // Register global shortcuts → emit events to frontend
-            use tauri::Emitter;
-            use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
-
-            // A shortcut already taken by another app (e.g. Ctrl+Shift+2 on
-            // Windows) must NOT abort startup — log it and keep the app usable
-            // via the tray menu.
-            let shortcuts: [(&str, &'static str); 4] = [
-                ("CommandOrControl+Shift+2", "trigger-capture-region"),
-                ("CommandOrControl+Shift+3", "trigger-capture-full"),
-                ("CommandOrControl+Shift+4", "trigger-record-region"), // toggle record region
-                ("CommandOrControl+Shift+1", "trigger-record-full"),   // toggle record full
-            ];
-            for (accelerator, event_name) in shortcuts {
-                let h = handle.clone();
-                let result = handle.global_shortcut().on_shortcut(
-                    accelerator,
-                    move |_app, _sc, event| {
-                        if event.state == ShortcutState::Pressed {
-                            use tauri::Manager;
-                            if let Some(win) = h.get_webview_window("main") {
-                                win.emit(event_name, ()).ok();
-                            }
-                        }
-                    },
-                );
-                if let Err(err) = result {
-                    eprintln!("[shortcut] could not register {accelerator}: {err}");
                 }
             }
 
@@ -127,6 +106,7 @@ pub fn run() {
             commands::close_overlay,
             commands::get_overlay_mode,
             // Recording commands
+            shortcuts::get_shortcut_labels,
             recording::check_ffmpeg_installed,
             recording::get_ffmpeg_debug_info,
             recording::install_ffmpeg,
