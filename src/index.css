@@ -1,18 +1,78 @@
 @import "tailwindcss";
+@import "@fontsource/be-vietnam-pro/400.css";
+@import "@fontsource/be-vietnam-pro/500.css";
+@import "@fontsource/be-vietnam-pro/600.css";
+@import "@fontsource/be-vietnam-pro/700.css";
+
+/*
+ * EduKids Screenshot — design tokens.
+ * Taken from the EduKids Tây Nguyên brand (edukidstaynguyen.com): a deep
+ * night-sky ground, brand blue for the one primary action, light blue for
+ * selection, the logo's yellow moon for the mark only, Be Vietnam Pro.
+ * Surfaces step up in lightness; no shadows on resting surfaces, no gradients
+ * in the chrome (the background presets are user content, not chrome).
+ */
+:root {
+  --ground: #060a16;     /* window ground (brand) */
+  --surface: #0c1222;    /* panels, title bar */
+  --raised: #131a2d;     /* controls, tiles */
+  --hover: #1a2338;
+  --active: #1f2a45;     /* selected tool / segment */
+  --border: #1d2640;     /* 1px structure */
+  --control: #2a3554;    /* control outlines */
+
+  --text: #f2f4f8;
+  --muted: #a3abbd;      /* secondary text, 8.9:1 on ground */
+  --faint: #8b94a9;      /* meta, 6.6:1 on ground */
+
+  --primary: #2563eb;    /* brand blue: the one primary action */
+  --primary-hover: #3b74f0;
+  --accent: #6ea8ff;     /* selection, focus, the "Kids" in the wordmark */
+  --moon: #ffc83d;       /* the logo's moon: the mark only */
+  --rec: #ef4444;        /* recording */
+  --rec-ink: #fca5a5;
+  --positive: #4ade80;
+
+  --radius-panel: 16px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
+  --font: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font) !important;
+  background: var(--ground) !important;
+  color: var(--text);
   user-select: none;
+  -webkit-font-smoothing: antialiased;
 }
 
-.drag-region {
-  -webkit-app-region: drag;
+.num { font-variant-numeric: tabular-nums; }
+
+/* Key caps use the text face (the browser default for <kbd> is monospace). */
+kbd { font-family: var(--font); letter-spacing: 0; }
+
+/* Keyboard focus is always visible, in the selection colour. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-button {
-  -webkit-app-region: no-drag;
+.drag-region { -webkit-app-region: drag; }
+button, input, select, a, canvas, [role="slider"] { -webkit-app-region: no-drag; }
+
+/* Press feedback for every button. */
+button:not(:disabled) { transition: background-color .15s ease, color .15s ease, border-color .15s ease, transform .08s ease; }
+button:not(:disabled):active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }
-canvas {
-  -webkit-app-region: no-drag;
-}
+
+/* Thin scrollbars that match the ground. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--control); border-radius: 999px; border: 2px solid var(--ground); }
+::-webkit-scrollbar-track { background: transparent; }

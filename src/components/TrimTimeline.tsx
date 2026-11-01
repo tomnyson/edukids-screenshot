@@ -78,8 +78,8 @@ export default function TrimTimeline({ duration, start, end, current, onChange, 
       title={`${which === 'start' ? 'Bắt đầu' : 'Kết thúc'}: ${formatTime(t)} (kéo, hoặc ← → / Shift để nhảy 1s)`}
       onPointerDown={drag(which)}
       onKeyDown={nudge(which)}
-      className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-8 rounded-md bg-emerald-400 border-2 border-white shadow-md
-        focus:outline-none focus:ring-2 focus:ring-emerald-300 ${disabled ? 'opacity-50' : 'cursor-ew-resize'}`}
+      className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-8 rounded-md bg-[var(--accent)] border-2 border-white
+        focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${disabled ? 'opacity-50' : 'cursor-ew-resize'}`}
       style={{ left: `${pct(t)}%`, touchAction: 'none' }}
     />
   );
@@ -88,7 +88,7 @@ export default function TrimTimeline({ duration, start, end, current, onChange, 
     <div className="select-none">
       <div
         ref={trackRef}
-        className={`relative h-8 rounded-md bg-gray-800 ${disabled ? '' : 'cursor-pointer'}`}
+        className={`relative h-9 rounded-lg bg-[var(--raised)] ${disabled ? '' : 'cursor-pointer'}`}
         onPointerDown={(e) => { if (!disabled) onSeek(Math.min(Math.max(timeAt(e.clientX), start), end)); }}
       >
         {/* dimmed (cut) areas */}
@@ -96,7 +96,7 @@ export default function TrimTimeline({ duration, start, end, current, onChange, 
         <div className="absolute inset-y-0 right-0 bg-black/50 rounded-r-md" style={{ width: `${100 - pct(end)}%` }} />
         {/* kept range */}
         <div
-          className="absolute inset-y-0 border-y-2 border-emerald-400 bg-emerald-500/15"
+          className="absolute inset-y-0 border-y-2 border-[var(--accent)] bg-[#6ea8ff26]"
           style={{ left: `${pct(start)}%`, width: `${pct(end) - pct(start)}%` }}
         />
         {/* playhead */}
@@ -104,9 +104,9 @@ export default function TrimTimeline({ duration, start, end, current, onChange, 
         {handle('start', start)}
         {handle('end', end)}
       </div>
-      <div className="flex justify-between mt-1 text-[11px] font-mono text-gray-400">
+      <div className="flex justify-between mt-1 num text-[12px] text-[var(--muted)]">
         <span>{formatTime(start)}</span>
-        <span className="text-gray-300">{formatTime(current)}</span>
+        <span className="text-[var(--text)] font-semibold">{formatTime(current)}</span>
         <span>{formatTime(end)}</span>
       </div>
     </div>

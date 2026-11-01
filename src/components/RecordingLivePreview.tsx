@@ -42,7 +42,7 @@ export default function RecordingLivePreview() {
 
   return (
     <figure className="m-auto w-full max-w-3xl">
-      <div className="relative rounded-2xl border border-red-900/60 bg-black overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
+      <div className="relative rounded-[16px] bg-black overflow-hidden" style={{ boxShadow: '0 0 0 1px #3a1a20' }}>
         <img
           ref={imgRef}
           alt="Xem trước nội dung đang được quay"
@@ -50,25 +50,20 @@ export default function RecordingLivePreview() {
         />
 
         {!hasFrame && (
-          <div className="aspect-video flex flex-col items-center justify-center gap-3 text-gray-500">
-            <span className="w-8 h-8 rounded-full border-2 border-gray-700 border-t-red-500 animate-spin" />
-            <span className="text-xs tracking-wide">Đang kết nối luồng hình ảnh…</span>
+          <div className="aspect-video flex flex-col items-center justify-center gap-3 text-[var(--muted)]">
+            <span className="w-8 h-8 rounded-full border-2 border-[var(--control)] border-t-[var(--rec)] animate-spin" />
+            <span className="text-[13px]">Đang kết nối hình xem trước…</span>
           </div>
         )}
 
         {/* Live badge */}
-        <div className="absolute top-3 left-3 flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-sm border border-red-900/60">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
-          </span>
-          <span className="text-red-300 text-[10px] font-semibold uppercase tracking-[0.18em]">
-            Trực tiếp
-          </span>
+        <div className="absolute top-3 left-3 flex items-center gap-2 h-7 px-3 rounded-full bg-black/75">
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--rec)]" />
+          <span className="text-[12px] font-semibold text-[var(--rec-ink)]">Xem trực tiếp</span>
         </div>
       </div>
 
-      <figcaption className="mt-3 text-center text-xs text-gray-500">
+      <figcaption className="mt-3 text-center text-[13px] text-[var(--faint)]">
         Đây là bản xem trước đã giảm chất lượng. Video lưu ra vẫn ở độ phân giải gốc, 30fps.
       </figcaption>
     </figure>

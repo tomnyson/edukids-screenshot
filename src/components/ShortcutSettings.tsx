@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Keyboard, RotateCcw, X } from 'lucide-react';
+import { Keyboard, RotateCcw } from 'lucide-react';
+import { Dialog, DialogClose } from './AboutDialog';
 
 type ShortcutInfo = {
   event: string;
@@ -113,71 +114,70 @@ export default function ShortcutSettings({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={() => void close()}
-    >
-      <div
-        className="bg-gray-900 border border-gray-700 rounded-2xl p-5 w-[420px] max-w-[92vw] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <Keyboard size={18} className="text-emerald-400" />
-          <h2 className="text-base font-bold text-white">Cài đặt phím tắt</h2>
-          <button onClick={() => void close()} className="ml-auto text-gray-400 hover:text-white cursor-pointer" title="Đóng">
-            <X size={16} />
-          </button>
-        </div>
-        <p className="text-xs text-gray-400 mb-4">
-          Bấm <b>Đổi</b> rồi nhấn tổ hợp phím mới (cần có Ctrl hoặc Alt{isMac ? ' hoặc ⌘' : ''}; F1–F12 và PrtSc dùng riêng được). Esc để huỷ.
-        </p>
-
-        <div className="space-y-2">
-          {items.map((it) => {
-            const isEditing = editing === it.event;
-            return (
-              <div key={it.event} className="flex items-center gap-2 bg-gray-800/60 rounded-lg px-3 py-2">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-gray-200">{it.name}</div>
-                  {it.error && !isEditing && <div className="text-[11px] text-amber-400 truncate" title={it.error}>{it.error}</div>}
-                </div>
-                <kbd
-                  className={`min-w-[96px] text-center text-xs px-2 py-1 rounded-md border font-mono ${
-                    isEditing
-                      ? 'border-emerald-500 text-emerald-300 animate-pulse'
-                      : it.label ? 'border-gray-600 text-gray-100' : 'border-amber-600 text-amber-400'
-                  }`}
-                >
-                  {isEditing ? (pressed || 'Nhấn phím…') : (it.label ?? 'Chưa có')}
-                </kbd>
-                {isEditing ? (
-                  <button onClick={() => void stopEditing()} className="text-xs px-2 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-200 cursor-pointer">
-                    Huỷ
-                  </button>
-                ) : (
-                  <button
-                    disabled={busy || editing !== null}
-                    onClick={() => void startEditing(it.event)}
-                    className="text-xs px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white cursor-pointer"
-                  >
-                    Đổi
-                  </button>
-                )}
-                <button
-                  disabled={busy || editing !== null || !it.isCustom}
-                  onClick={() => void apply(it.event, null)}
-                  title="Về mặc định"
-                  className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-20 cursor-pointer"
-                >
-                  <RotateCcw size={14} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {error && <div className="mt-3 text-xs text-red-400 bg-red-950/40 border border-red-900 rounded-md px-3 py-2">{error}</div>}
+    <Dialog title="Cài đặt phím tắt" onClose={() => void close()} width={500}>
+      <div className="flex items-center gap-2.5 px-6 pt-5">
+        <Keyboard size={20} className="text-[var(--accent)]" />
+        <h2 className="text-[18px] font-bold">Cài đặt phím tắt</h2>
+        <span className="ml-auto"><DialogClose onClose={() => void close()} /></span>
       </div>
-    </div>
+      <p className="px-6 mt-1.5 text-sm text-[var(--muted)]">
+        Bấm <b className="text-[var(--text)]">Đổi</b> rồi nhấn tổ hợp phím mới. Cần có Ctrl hoặc Alt{isMac ? ' hoặc ⌘' : ''}; riêng F1–F12 và PrtSc dùng một mình được. Bấm Esc để huỷ.
+      </p>
+
+      <ul className="px-4 pt-4 pb-5 space-y-1.5">
+        {items.map((it) => {
+          const isEditing = editing === it.event;
+          return (
+            <li key={it.event} className={`flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 ${isEditing ? 'bg-[var(--active)]' : 'bg-[var(--raised)]'}`}>
+              <div className="flex-1 min-w-0">
+                <div className="text-[15px] font-medium">{it.name}</div>
+                {it.error && !isEditing && <div className="text-[12px] text-[var(--moon)] truncate" title={it.error}>{it.error}</div>}
+              </div>
+              <kbd
+                className={`num min-w-[124px] h-8 inline-flex items-center justify-center px-2.5 rounded-lg text-[13px] font-semibold whitespace-nowrap ${isEditing ? 'animate-pulse' : ''}`}
+                style={{
+                  background: 'var(--ground)',
+                  border: `1px solid ${isEditing ? 'var(--accent)' : it.label ? 'var(--control)' : 'var(--moon)'}`,
+                  color: isEditing ? 'var(--accent)' : it.label ? 'var(--text)' : 'var(--moon)',
+                }}
+              >
+                {isEditing ? (pressed || 'Nhấn phím…') : (it.label ?? 'Chưa có')}
+              </kbd>
+              {isEditing ? (
+                <button type="button" onClick={() => void stopEditing()}
+                  className="h-8 px-3.5 rounded-full text-[13px] font-semibold cursor-pointer bg-[var(--hover)] hover:bg-[var(--control)]">
+                  Huỷ
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy || editing !== null}
+                  onClick={() => void startEditing(it.event)}
+                  className="h-8 px-3.5 rounded-full text-[13px] font-bold cursor-pointer text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40"
+                >
+                  Đổi
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={busy || editing !== null || !it.isCustom}
+                onClick={() => void apply(it.event, null)}
+                title="Về phím mặc định"
+                aria-label={`Đặt lại phím mặc định cho ${it.name}`}
+                className="w-8 h-8 grid place-items-center rounded-full cursor-pointer text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover)] disabled:opacity-25"
+              >
+                <RotateCcw size={15} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {error && (
+        <div role="alert" className="mx-6 mb-5 -mt-1 text-sm rounded-[var(--radius-control)] px-3.5 py-2.5" style={{ background: '#2a1416', color: 'var(--rec-ink)' }}>
+          {error}
+        </div>
+      )}
+    </Dialog>
   );
 }

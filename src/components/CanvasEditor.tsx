@@ -177,9 +177,11 @@ export default function CanvasEditor({
   // Incremented per layout pass so a slow, stale backdrop build never wins
   const layoutGenRef = useRef(0);
 
+  // Space left for the picture: the window minus the tool rail (92), the side
+  // panel (276), the title bar (48) and the canvas area's padding (2 × 24).
   const viewportMax = () => ({
-    maxW: window.innerWidth  - 100,
-    maxH: window.innerHeight - 200,
+    maxW: Math.max(320, window.innerWidth  - 92 - 276 - 48 - 8),
+    maxH: Math.max(240, window.innerHeight - 48 - 48 - 8),
   });
 
   /** Rebuild the backdrop image for the current canvas size + background */
@@ -490,7 +492,7 @@ export default function CanvasEditor({
   }, [fabricCanvas, onReady, imageUrl]);
 
   return (
-    <div className="shadow-2xl rounded-xl overflow-hidden border border-gray-700">
+    <div className="rounded-[10px] overflow-hidden" style={{ boxShadow: '0 0 0 1px var(--border)' }}>
       <canvas ref={canvasRef} />
     </div>
   );

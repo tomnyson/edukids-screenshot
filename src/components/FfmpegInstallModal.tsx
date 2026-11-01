@@ -43,11 +43,11 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60"
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+        className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 max-w-md w-full"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -58,7 +58,7 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
           <h2 className="text-lg font-bold text-white">
             {state === 'success' ? 'FFmpeg đã sẵn sàng!' : 'Cần cài FFmpeg'}
           </h2>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-[var(--muted)] text-sm mt-1">
             {state === 'success'
               ? 'Bạn có thể quay video ngay bây giờ.'
               : 'Tính năng quay video cần FFmpeg để hoạt động.'}
@@ -73,7 +73,7 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
                 ? 'bg-green-900/30 border border-green-700/50 text-green-400'
                 : state === 'error'
                 ? 'bg-red-900/30 border border-red-700/50 text-red-400'
-                : 'bg-gray-800 text-gray-300'
+                : 'bg-[var(--raised)] text-[var(--text)]'
             }`}
           >
             {message}
@@ -83,8 +83,8 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
         {/* Installing spinner */}
         {state === 'installing' && (
           <div className="flex items-center justify-center gap-3 py-4">
-            <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-gray-300 text-sm">Đang cài đặt FFmpeg...</span>
+            <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[var(--text)] text-sm">Đang cài đặt FFmpeg...</span>
           </div>
         )}
 
@@ -102,7 +102,7 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
               {/* Auto install button */}
               <button
                 onClick={handleInstall}
-                className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-colors cursor-pointer flex items-center justify-center gap-2"
+                className="w-full px-4 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white rounded-xl text-sm font-medium transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 3v12m0 0l-4-4m4 4l4-4" />
@@ -113,7 +113,7 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
               {/* Retry button */}
               <button
                 onClick={handleRetry}
-                className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
+                className="w-full px-4 py-2 bg-[var(--raised)] hover:bg-[var(--hover)] text-[var(--text)] rounded-xl text-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5M6.3 17.7A8 8 0 0119.7 6.3M17.7 6.3A8 8 0 016.3 17.7" />
@@ -122,11 +122,11 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
               </button>
 
               {/* Manual instruction (collapsible) */}
-              <div className="border-t border-gray-800 pt-3 mt-1">
-                <p className="text-gray-500 text-xs text-center mb-2">
+              <div className="border-t border-[var(--border)] pt-3 mt-1">
+                <p className="text-[var(--muted)] text-xs text-center mb-2">
                   Hoặc cài thủ công qua {isWindows ? "tải file hệ thống" : "Terminal"}:
                 </p>
-                <div className="bg-gray-800 rounded-lg p-2.5 text-xs text-green-400 font-mono text-center select-all whitespace-pre-wrap">
+                <div className="bg-[var(--raised)] rounded-lg p-2.5 text-xs text-green-400 font-mono text-center select-all whitespace-pre-wrap">
                   {isWindows ? "1. Tải ffmpeg.exe trên mạng\n2. Ném vào thư mục %localappdata%/com.screenshot-tool.tauri/" : "brew install ffmpeg"}
                 </div>
               </div>
@@ -134,7 +134,7 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
               {/* Debug link */}
               <button
                 onClick={handleDebug}
-                className="text-gray-600 hover:text-gray-400 text-xs transition-colors cursor-pointer mt-1"
+                className="text-[var(--faint)] hover:text-[var(--text)] text-xs transition-colors cursor-pointer mt-1"
               >
                 🔍 Chi tiết debug
               </button>
@@ -145,7 +145,7 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
           {state !== 'installing' && state !== 'success' && (
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-300 text-xs transition-colors cursor-pointer mt-1"
+              className="text-[var(--muted)] hover:text-[var(--text)] text-xs transition-colors cursor-pointer mt-1"
             >
               Đóng
             </button>
@@ -154,17 +154,17 @@ export default function FfmpegInstallModal({ onClose }: { onClose: () => void })
 
         {/* Debug info panel */}
         {showDebug && debugInfo && (
-          <div className="mt-4 border-t border-gray-800 pt-3">
+          <div className="mt-4 border-t border-[var(--border)] pt-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-500 font-medium">Debug Info</span>
+              <span className="text-xs text-[var(--muted)] font-medium">Debug Info</span>
               <button
                 onClick={() => setShowDebug(false)}
-                className="text-gray-600 hover:text-gray-400 text-xs cursor-pointer"
+                className="text-[var(--faint)] hover:text-[var(--text)] text-xs cursor-pointer"
               >
                 Ẩn
               </button>
             </div>
-            <pre className="bg-gray-950 rounded-lg p-3 text-xs text-gray-400 font-mono whitespace-pre-wrap max-h-40 overflow-auto border border-gray-800">
+            <pre className="bg-[var(--ground)] rounded-lg p-3 text-xs text-[var(--muted)] font-mono whitespace-pre-wrap max-h-40 overflow-auto border border-[var(--border)]">
               {debugInfo}
             </pre>
           </div>

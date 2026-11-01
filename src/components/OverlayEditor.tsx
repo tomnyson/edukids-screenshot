@@ -406,7 +406,7 @@ export default function OverlayEditor() {
   const rectHeight = rect ? rect.h : 0;
 
   // Position Action Toolbar below/above/inside the selection
-  const toolbarWidth = isRecord ? 280 : 300;
+  const toolbarWidth = isRecord ? 340 : 360;
   const space = 12;
   let toolbarTop = rectTop + rectHeight + space;
   let toolbarLeft = rectLeft + rectWidth / 2 - toolbarWidth / 2;
@@ -437,17 +437,17 @@ export default function OverlayEditor() {
       onPointerMove={handlePointerMovePassive}
     >
       {/* Top Banner Guide */}
-      <div className={`absolute top-4 left-1/2 -translate-x-1/2 ${isRecord ? 'bg-red-500/90' : 'bg-slate-900/90'} backdrop-blur-md text-white px-5 py-2 rounded-full text-xs font-semibold uppercase tracking-wider z-50 border ${isRecord ? 'border-red-400/30 shadow-[0_4px_20px_rgba(239,68,68,0.25)]' : 'border-slate-800 shadow-[0_4px_2px_rgba(0,0,0,0.15)]'} transition-all pointer-events-none`}>
+      <div className={`absolute top-4 left-1/2 -translate-x-1/2 ${isRecord ? 'bg-[var(--rec)]' : 'bg-[var(--surface)]'} text-white px-5 py-2 rounded-full text-[14px] font-semibold z-50 border ${isRecord ? 'border-transparent' : 'border-[var(--border)]'} transition-all pointer-events-none`}>
         {isRecord
-          ? 'Quay Vùng: Kéo thả để chọn (Enter: Chạy · ESC: Huỷ)'
-          : 'Chụp Vùng: Kéo thả để chọn (Enter: Chụp · ESC: Huỷ)'
+          ? 'Kéo chuột để chọn vùng cần quay · Enter để bắt đầu · Esc để huỷ'
+          : 'Kéo chuột để chọn vùng cần chụp · Enter để chụp · Esc để huỷ'
         }
       </div>
 
       {/* Loupe / Magnifier */}
       {interactionMode !== 'idle' && (
         <div
-          className="absolute w-[120px] h-[120px] border-4 border-white shadow-2xl rounded-full overflow-hidden z-50 pointer-events-none bg-gray-950/80 backdrop-blur-xs flex items-center justify-center"
+          className="absolute w-[120px] h-[120px] border-4 border-white shadow-2xl rounded-full overflow-hidden z-50 pointer-events-none bg-gray-950/80 flex items-center justify-center"
           style={{ left: loupeLeft, top: loupeTop }}
         >
           <canvas
@@ -463,7 +463,7 @@ export default function OverlayEditor() {
             <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.8)]" />
           </div>
           {/* Zoom Level Indicator */}
-          <div className="absolute bottom-1 bg-black/75 px-1.5 py-0.5 rounded text-[8px] font-mono text-white tracking-widest leading-none">
+          <div className="absolute bottom-1 bg-black/75 px-1.5 py-0.5 rounded text-[11px] num text-white leading-none">
             2.5X
           </div>
         </div>
@@ -486,7 +486,7 @@ export default function OverlayEditor() {
             onDoubleClick={handleConfirm}
           >
             {/* Dimensions tooltip */}
-            <div className={`absolute -top-6 left-0 px-2 py-0.5 ${isRecord ? 'bg-red-500' : 'bg-blue-600'} text-[10px] font-mono font-bold text-white rounded shadow-sm pointer-events-none`}>
+            <div className={`absolute -top-6 left-0 px-2 py-0.5 ${isRecord ? 'bg-red-500' : 'bg-[var(--primary)]'} num text-[12px] font-bold text-white rounded shadow-sm pointer-events-none`}>
               {Math.round(rectWidth)} × {Math.round(rectHeight)}
             </div>
 
@@ -530,7 +530,7 @@ export default function OverlayEditor() {
           {/* Action Toolbar */}
           {interactionMode === 'idle' && (
             <div
-              className="absolute h-[42px] bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-2.5 flex items-center justify-between shadow-[0_10px_30px_rgba(0,0,0,0.5)] z-50 transition-all select-none"
+              className="absolute h-[48px] bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2.5 flex items-center justify-between shadow-[0_10px_30px_rgba(0,0,0,0.5)] z-50 transition-all select-none"
               style={{
                 top: toolbarTop,
                 left: toolbarLeft,
@@ -543,7 +543,7 @@ export default function OverlayEditor() {
                   {/* Screenshot Actions */}
                   <button
                     onClick={handleConfirm}
-                    className="flex-1 h-7 flex items-center justify-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-500 active:scale-95 text-[11px] font-semibold text-white rounded-lg transition-all cursor-pointer shadow-sm shadow-blue-500/10"
+                    className="flex-1 h-8 flex items-center justify-center gap-1.5 px-3 py-1 bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-95 text-[13px] font-semibold text-white rounded-lg transition-all cursor-pointer"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -552,16 +552,16 @@ export default function OverlayEditor() {
                   </button>
                   <button
                     onClick={handleCopy}
-                    className="flex-1 h-7 flex items-center justify-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-[11px] font-semibold text-slate-200 rounded-lg transition-all cursor-pointer border border-slate-700/60 ml-2"
+                    className="flex-1 h-8 flex items-center justify-center gap-1.5 px-3 py-1 bg-[var(--raised)] hover:bg-[var(--hover)] active:scale-95 text-[13px] font-semibold text-[var(--text)] rounded-lg transition-all cursor-pointer border border-[var(--border)] ml-2"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2" />
                     </svg>
-                    Sao Chép
+                    Sao chép
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="h-7 w-7 flex items-center justify-center bg-slate-800 hover:bg-red-950 hover:text-red-400 text-slate-400 rounded-lg transition-all cursor-pointer border border-slate-700/60 ml-2"
+                    className="h-8 w-8 flex items-center justify-center bg-[var(--raised)] hover:bg-red-950 hover:text-red-400 text-[var(--muted)] rounded-lg transition-all cursor-pointer border border-[var(--border)] ml-2"
                     title="Huỷ bỏ"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -572,15 +572,15 @@ export default function OverlayEditor() {
               ) : (
                 <>
                   {/* Aspect Ratio & Size Presets */}
-                  <div className="flex gap-1 mr-2 border-r border-slate-700/60 pr-2">
+                  <div className="flex gap-1 mr-2 border-r border-[var(--border)] pr-2">
                     <button
                       onClick={() => setAspectRatio('free')}
-                      className={`h-7 px-2 text-[10px] font-semibold rounded ${aspectRatio === 'free' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'} transition-colors cursor-pointer`}
+                      className={`h-7 px-2 text-[12px] font-semibold rounded ${aspectRatio === 'free' ? 'bg-[var(--active)] text-white' : 'text-[var(--muted)] hover:text-[var(--text)]'} transition-colors cursor-pointer`}
                     >
                       Free
                     </button>
                     <select
-                      className="h-7 px-1 text-[10px] font-semibold rounded bg-slate-800 text-white border border-slate-700 outline-none cursor-pointer"
+                      className="h-8 px-1 text-[12px] font-semibold rounded bg-[var(--raised)] text-white border border-[var(--border)] outline-none cursor-pointer"
                       onChange={(e) => {
                         const val = e.target.value;
                         if (val === '16:9' || val === '9:16') {
@@ -617,7 +617,7 @@ export default function OverlayEditor() {
                   {/* Recording Actions */}
                   <button
                     onClick={handleConfirm}
-                    className="flex-1 h-7 flex items-center justify-center gap-1.5 px-3 py-1 bg-red-600 hover:bg-red-500 active:scale-95 text-[11px] font-semibold text-white rounded-lg transition-all cursor-pointer shadow-sm shadow-red-500/10"
+                    className="flex-1 h-8 flex items-center justify-center gap-1.5 px-3 py-1 bg-red-600 hover:bg-red-500 active:scale-95 text-[13px] font-semibold text-white rounded-lg transition-all cursor-pointer shadow-sm shadow-red-500/10"
                   >
                     <svg className="w-3.5 h-3.5 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="8" />
@@ -626,7 +626,7 @@ export default function OverlayEditor() {
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="h-7 w-7 flex items-center justify-center bg-slate-800 hover:bg-red-950 hover:text-red-400 text-slate-400 rounded-lg transition-all cursor-pointer border border-slate-700/60 ml-2"
+                    className="h-8 w-8 flex items-center justify-center bg-[var(--raised)] hover:bg-red-950 hover:text-red-400 text-[var(--muted)] rounded-lg transition-all cursor-pointer border border-[var(--border)] ml-2"
                     title="Huỷ bỏ"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

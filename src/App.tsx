@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type EventCallback } from '@tauri-apps/api/event';
-import Toolbar from './components/Toolbar';
 import CanvasEditor, { type BackgroundOption } from './components/CanvasEditor';
+import TitleBar from './components/TitleBar';
+import HomeScreen from './components/HomeScreen';
+import EditorTools, { TOOL_KEYS, type Tool } from './components/EditorTools';
+import EditorPanel from './components/EditorPanel';
+import AboutDialog from './components/AboutDialog';
 import PermissionGuide from './components/PermissionGuide';
 import OverlayEditor from './components/OverlayEditor';
 import RecordingBar from './components/RecordingBar';
@@ -11,8 +15,6 @@ import ShortcutSettings from './components/ShortcutSettings';
 import RecordingPreview from './components/RecordingPreview';
 import RecordingLivePreview from './components/RecordingLivePreview';
 import RecordingScreenPicker, { type RecordingScreen } from './components/RecordingScreenPicker';
-import AppLogo from './components/AppLogo';
-import edukidsLogo from './assets/edukids-logo.png';
 import { fetchImage } from './idb';
 import { checkForUpdates } from './updater';
 import { getVersion } from '@tauri-apps/api/app';
@@ -29,9 +31,10 @@ function MainApp() {
   const [drawSize, setDrawSize] = useState<number>(4);
   const [background, setBackground] = useState<BackgroundOption>({
     type: 'gradient',
-    stops: ['#667eea', '#764ba2'],
+    stops: ['#1e3a8a', '#2563eb'],
     angle: 135,
   });
+  const [tool, setTool] = useState<Tool>('select');
   const [showAbout, setShowAbout] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [appVersion, setAppVersion] = useState('');
@@ -243,6 +246,14 @@ function MainApp() {
           void checkForUpdates({ silent: false });
         }
       );
+      // Rust also announces a finished recording (e.g. stopped from the tray).
+      await register<string>('recording-stopped', (event) => {
+          if (event.payload) {
+            setRecordingActive(false);
+            setRecordedFilePath(event.payload);
+          }
+        }
+      );
     };
 
     // Clipboard paste → load image directly into editor
@@ -284,25 +295,69 @@ function MainApp() {
   const handleRecordRegion = async () => recordFlow(true);
   const handleRecordFull = async () => recordFlow(false);
 
-  const handleSave = async () => {
-    if (!editorRef || !image) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (!editorRef || !image) return false;
     const dataUrl = editorRef.exportImage();
-    if (!dataUrl) return;
+    if (!dataUrl) return false;
     const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
     try {
-      await invoke('save_image', { dataUrl, defaultName: `Screenshot-${dateStr}.png` });
+      return await invoke<boolean>('save_image', { dataUrl, defaultName: `EduKids-${dateStr}.png` });
     } catch (err) {
       console.error('Save failed:', err);
+      return false;
     }
   };
 
-  const handleCopy = async () => {
-    if (!editorRef || !image) return;
+  const handleCopy = async (): Promise<boolean> => {
+    if (!editorRef || !image) return false;
     const dataUrl = editorRef.exportImage();
-    if (dataUrl) {
-      await invoke('copy_image', { dataUrl });
+    if (!dataUrl) return false;
+    try {
+      return await invoke<boolean>('copy_image', { dataUrl });
+    } catch (err) {
+      console.error('Copy failed:', err);
+      return false;
     }
   };
+
+  const chooseTool = (t: Tool) => {
+    setTool(t);
+    editorRef?.setTool(t);
+  };
+
+  const goHome = () => {
+    setImage(null);
+    setEditorRef(null);
+    setTool('select');
+    setAppState('idle');
+  };
+
+  const openImage = (dataUrl: string) => {
+    setImage(dataUrl);
+    setAppState('has-image');
+    setCaptureError(null);
+  };
+
+  // Editor keyboard: tool letters, undo/redo, save. Ignored while typing in a text box.
+  const saveRef = useRef(handleSave);
+  saveRef.current = handleSave;
+  useEffect(() => {
+    if (appState !== 'has-image' || !editorRef) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); editorRef.undo(); return; }
+      if (mod && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); editorRef.redo(); return; }
+      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void saveRef.current(); return; }
+      if (!mod && !e.altKey) {
+        const t = TOOL_KEYS[e.key.toLowerCase()];
+        if (t) { setTool(t); editorRef.setTool(t); }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [appState, editorRef]);
 
   if (appState === 'no-permission') {
     return (
@@ -314,118 +369,14 @@ function MainApp() {
     );
   }
 
-  return (
-    <div className="flex flex-col h-screen bg-gray-950 text-white overflow-hidden">
-      {/* ── macOS-style titlebar ─────────────────────────────────────── */}
-      <div
-        className="flex items-center h-8 px-3 gap-2 bg-gray-900 border-b border-gray-800 z-50 flex-shrink-0"
-        style={{ WebkitAppRegion: 'drag' } as any}
-      >
-        {/* Traffic light buttons */}
-        <div
-          className="flex items-center gap-1.5"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-        >
-          {/* Red — Close */}
-          <button
-            onClick={() => invoke('close_window')}
-            title="Close"
-            className="w-3 h-3 rounded-full bg-[#ff5f57] hover:bg-[#ff3b30] border border-[#e0443e]/60 transition-colors cursor-pointer flex items-center justify-center group"
-          >
-            <span className="opacity-0 group-hover:opacity-100 text-[#820005] leading-none" style={{ fontSize: 7, lineHeight: 1 }}>✕</span>
-          </button>
-          {/* Yellow — Minimize */}
-          <button
-            onClick={() => invoke('minimize_window')}
-            title="Minimise"
-            className="w-3 h-3 rounded-full bg-[#febc2e] hover:bg-[#ffb41a] border border-[#d79200]/60 transition-colors cursor-pointer flex items-center justify-center group"
-          >
-            <span className="opacity-0 group-hover:opacity-100 text-[#985700] leading-none" style={{ fontSize: 9, lineHeight: 1 }}>−</span>
-          </button>
-          {/* Green — Fullscreen */}
-          <button
-            onClick={() => invoke('toggle_fullscreen')}
-            title="Fullscreen"
-            className="w-3 h-3 rounded-full bg-[#28c840] hover:bg-[#1aad2b] border border-[#14a422]/60 transition-colors cursor-pointer flex items-center justify-center group"
-          >
-            <span className="opacity-0 group-hover:opacity-100 text-[#006401] leading-none" style={{ fontSize: 7, lineHeight: 1 }}>⤢</span>
-          </button>
-        </div>
-        {/* Drag area fills the rest of the title bar */}
-        <div className="flex-1" />
-        {/* Shortcut settings + About buttons */}
-        <div style={{ WebkitAppRegion: 'no-drag' } as any} className="flex items-center">
-          <button
-            onClick={() => setShowShortcuts(true)}
-            title="Cài đặt phím tắt"
-            className="text-gray-400 hover:text-white transition-colors cursor-pointer text-xs px-1.5"
-          >
-            ⌨️
-          </button>
-          <button
-            onClick={() => setShowAbout(true)}
-            title="About"
-            className="text-gray-400 hover:text-white transition-colors cursor-pointer text-xs px-1.5"
-          >
-            ℹ️
-          </button>
-        </div>
-      </div>
-
+  const modals = (
+    <>
       {showShortcuts && <ShortcutSettings onClose={() => setShowShortcuts(false)} />}
-
-      {/* About Modal */}
-      {showAbout && (
-        <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setShowAbout(false)}
-        >
-          <div
-            className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img src={edukidsLogo} alt="Edukids Logo" className="w-20 h-20 mx-auto mb-3 object-contain" />
-            <h2 className="text-lg font-bold text-white mb-1">Edukids Screenshot</h2>
-            <p className="text-gray-400 text-sm mb-2">Version {appVersion || '…'}</p>
-            <button
-              onClick={() => void checkForUpdates({ silent: false })}
-              className="mb-4 px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
-            >
-              Kiểm tra cập nhật
-            </button>
-            <div className="border-t border-gray-700 pt-4 space-y-1">
-              <p className="text-gray-300 text-sm font-medium">Tác giả</p>
-              <p className="text-white font-semibold">Lê Hồng Sơn</p>
-              <a
-                href="mailto:tabletkindfire@gmail.com"
-                className="text-blue-400 hover:text-blue-300 text-sm transition-colors"
-              >
-                tabletkindfire@gmail.com
-              </a>
-            </div>
-            <button
-              onClick={() => setShowAbout(false)}
-              className="mt-5 px-5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors cursor-pointer"
-            >
-              Đóng
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* FFmpeg missing modal */}
-      {ffmpegMissing && (
-        <FfmpegInstallModal onClose={() => setFfmpegMissing(false)} />
-      )}
-
-      {/* Recording preview modal */}
+      {showAbout && <AboutDialog version={appVersion} onClose={() => setShowAbout(false)} />}
+      {ffmpegMissing && <FfmpegInstallModal onClose={() => setFfmpegMissing(false)} />}
       {recordedFilePath && (
-        <RecordingPreview
-          filePath={recordedFilePath}
-          onClose={() => setRecordedFilePath(null)}
-        />
+        <RecordingPreview filePath={recordedFilePath} onClose={() => setRecordedFilePath(null)} />
       )}
-
       {recordingScreens && (
         <RecordingScreenPicker
           screens={recordingScreens}
@@ -436,82 +387,71 @@ function MainApp() {
           onCancel={() => setRecordingScreens(null)}
         />
       )}
-
-      {/* Show RecordingBar when recording, otherwise show Toolbar */}
-      {isRecording ? (
-        <RecordingBar onStop={() => stopRecording()} />
-      ) : (
-        <Toolbar
-          onCaptureRegion={handleCaptureRegion}
-          onCaptureFull={handleCaptureFull}
-          onRecordRegion={handleRecordRegion}
-          onRecordFull={handleRecordFull}
-          onSave={handleSave}
-          onCopy={handleCopy}
-          onToolSelect={(tool) => editorRef?.setTool(tool)}
-          onUndo={() => editorRef?.undo()}
-          onRedo={() => editorRef?.redo()}
-          onClear={() => editorRef?.clearAll()}
-          hasImage={!!image}
-          drawColor={drawColor}
-          drawSize={drawSize}
-          onColorChange={setDrawColor}
-          onSizeChange={setDrawSize}
-          background={background}
-          onBgChange={setBackground}
-          onAspectRatio={(ratio) => editorRef?.resizeToAspectRatio(ratio)}
-        />
-      )}
-      <div className="flex-1 bg-gray-900 flex overflow-auto p-4 pt-8">
-        {isRecording ? (
-          <RecordingLivePreview />
-        ) : image ? (
-          <div className="m-auto">
-            <CanvasEditor
-              imageUrl={image}
-              onReady={setEditorRef}
-              drawColor={drawColor}
-              drawSize={drawSize}
-              onDrawSizeChange={setDrawSize}
-              background={background}
-            />
-          </div>
-        ) : (
-          <div className="m-auto">
-            <EmptyState onCaptureRegion={handleCaptureRegion} onCaptureFull={handleCaptureFull} />
-          </div>
-        )}
-      </div>
-    </div>
+    </>
   );
-}
 
-function EmptyState({ onCaptureRegion, onCaptureFull }: { onCaptureRegion: () => void, onCaptureFull: () => void }) {
   return (
-    <div className="text-center flex flex-col items-center gap-4">
-      <div className="w-24 h-24 rounded-[28px] bg-slate-900 flex items-center justify-center border border-cyan-950 shadow-[0_24px_60px_rgba(7,18,32,0.45)]">
-        <AppLogo size={68} />
-      </div>
-      <div className="text-center space-y-1">
-        <div className="text-white font-semibold tracking-tight">Screenshot Tool</div>
-        <div className="text-cyan-300/80 text-xs uppercase tracking-[0.24em]">Capture Better</div>
-      </div>
-      <p className="text-gray-400 text-sm">Chưa có ảnh nào. Bắt đầu bằng cách chụp màn hình.</p>
-      <div className="flex gap-4 mt-2">
-        <button
-          onClick={onCaptureRegion}
-          className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-white text-sm font-medium transition-colors cursor-pointer flex items-center gap-2"
-        >
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 6h12v12H6z" /><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h2v2H4zm14 12h2v2h-2z" /></svg>
-          Chụp Vùng
-        </button>
-        <button
-          onClick={onCaptureFull}
-          className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-xl text-white text-sm font-medium transition-colors cursor-pointer"
-        >
-          Toàn màn hình
-        </button>
-      </div>
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--ground)', color: 'var(--text)' }}>
+      <TitleBar
+        onHome={image && !isRecording ? goHome : undefined}
+        onShortcuts={() => setShowShortcuts(true)}
+        onAbout={() => setShowAbout(true)}
+      />
+      {modals}
+
+      {isRecording ? (
+        <>
+          <RecordingBar onStop={() => stopRecording()} />
+          <main className="flex-1 flex overflow-auto p-6">
+            <RecordingLivePreview />
+          </main>
+        </>
+      ) : image ? (
+        <div className="flex-1 flex min-h-0">
+          <EditorTools
+            tool={tool}
+            onTool={chooseTool}
+            color={drawColor}
+            onColor={setDrawColor}
+            size={drawSize}
+            onSize={setDrawSize}
+          />
+          <main className="flex-1 min-w-0 flex overflow-auto p-6" aria-label="Ảnh đang chỉnh">
+            <h1 className="sr-only">Chỉnh ảnh chụp</h1>
+            <div className="m-auto">
+              <CanvasEditor
+                imageUrl={image}
+                onReady={setEditorRef}
+                drawColor={drawColor}
+                drawSize={drawSize}
+                onDrawSizeChange={setDrawSize}
+                background={background}
+              />
+            </div>
+          </main>
+          <EditorPanel
+            background={background}
+            onBackground={setBackground}
+            onAspectRatio={(ratio) => editorRef?.resizeToAspectRatio(ratio)}
+            onUndo={() => editorRef?.undo()}
+            onRedo={() => editorRef?.redo()}
+            onClear={() => editorRef?.clearAll()}
+            onCopy={handleCopy}
+            onSave={handleSave}
+          />
+        </div>
+      ) : (
+        <main className="flex-1 min-h-0">
+          <HomeScreen
+            onCaptureRegion={handleCaptureRegion}
+            onCaptureFull={handleCaptureFull}
+            onRecordRegion={handleRecordRegion}
+            onRecordFull={handleRecordFull}
+            onOpenImage={openImage}
+            onShortcuts={() => setShowShortcuts(true)}
+          />
+        </main>
+      )}
     </div>
   );
 }

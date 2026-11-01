@@ -1,4 +1,5 @@
 import { Monitor } from 'lucide-react';
+import { Dialog, DialogClose } from './AboutDialog';
 
 export interface RecordingScreen {
   deviceIndex: string;
@@ -11,45 +12,30 @@ interface RecordingScreenPickerProps {
   onCancel: () => void;
 }
 
-export default function RecordingScreenPicker({
-  screens,
-  onSelect,
-  onCancel,
-}: RecordingScreenPickerProps) {
+export default function RecordingScreenPicker({ screens, onSelect, onCancel }: RecordingScreenPickerProps) {
   return (
-    <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={onCancel}
-    >
-      <div
-        className="w-full max-w-sm rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 className="text-base font-semibold text-white">Chọn màn hình cần quay</h2>
-        <p className="mt-1 text-sm text-gray-400">
-          Video sẽ bắt đầu sau khi bạn chọn một màn hình.
-        </p>
-
-        <div className="mt-4 space-y-2">
-          {screens.map((screen) => (
-            <button
-              key={screen.deviceIndex}
-              onClick={() => onSelect(screen)}
-              className="flex w-full items-center gap-3 rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-left text-sm text-gray-200 transition-colors hover:border-red-500 hover:bg-gray-700"
-            >
-              <Monitor size={18} className="text-red-400" />
-              <span>{screen.label}</span>
-            </button>
-          ))}
-        </div>
-
-        <button
-          onClick={onCancel}
-          className="mt-4 w-full rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors hover:bg-gray-800 hover:text-white"
-        >
-          Hủy
-        </button>
+    <Dialog title="Chọn màn hình cần quay" onClose={onCancel} width={420}>
+      <div className="flex items-center gap-2.5 px-6 pt-5">
+        <span className="w-2.5 h-2.5 rounded-full bg-[var(--rec)]" aria-hidden />
+        <h2 className="text-[18px] font-bold">Chọn màn hình cần quay</h2>
+        <span className="ml-auto"><DialogClose onClose={onCancel} /></span>
       </div>
-    </div>
+      <p className="px-6 mt-1 text-sm text-[var(--muted)]">Video bắt đầu ngay khi bạn chọn. Bấm Dừng trên thanh đỏ để kết thúc.</p>
+      <div className="p-4 pt-4 space-y-2">
+        {screens.map((screen) => (
+          <button
+            key={screen.deviceIndex}
+            type="button"
+            onClick={() => onSelect(screen)}
+            className="w-full h-14 px-4 flex items-center gap-3 rounded-[var(--radius-control)] text-left text-[15px] font-semibold cursor-pointer border
+              bg-[var(--raised)] hover:bg-[var(--hover)] border-[var(--border)] hover:border-[var(--rec)]"
+          >
+            <Monitor size={20} className="text-[var(--rec-ink)]" />
+            {screen.label}
+            <span className="ml-auto text-[13px] font-medium text-[var(--muted)]">Bắt đầu quay</span>
+          </button>
+        ))}
+      </div>
+    </Dialog>
   );
 }

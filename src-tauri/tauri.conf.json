@@ -17,6 +17,8 @@
         "title": "Edukids Screenshot",
         "width": 1200,
         "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
         "visible": false,
         "decorations": false,
         "titleBarStyle": "Overlay",
