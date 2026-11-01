@@ -30,6 +30,17 @@ pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState(Mutex::new(OverlayCaptureState::default())))
         .manage(recording::RecordingState::default())
+        // Must be the first plugin: a second launch exits immediately and
+        // instead brings the already-running instance's window to the front
+        // (prevents duplicate tray icons / global-shortcut conflicts).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            use tauri::Manager;
+            if let Some(win) = app.get_webview_window("main") {
+                win.unminimize().ok();
+                win.show().ok();
+                win.set_focus().ok();
+            }
+        }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -46,8 +57,8 @@ pub fn run() {
 
             tray::setup_tray(&handle)?;
 
-            // Automatically show the window during development (yarn dev)
-            #[cfg(debug_assertions)]
+            // Show the main window on launch so users can see the app started
+            // (closing it still just hides it to the tray).
             {
                 use tauri::Manager;
                 if let Some(win) = handle.get_webview_window("main") {
