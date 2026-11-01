@@ -59,7 +59,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFFMjEyNzMzNzA3OTJBMUQKUldRZEtubHdNeWNoSG16NmhIMkFZZmJIOXBTNlZCWUg3NXFJWEE5bWFEcnQ4M3h4K3pOVXNjMVkK",
       "endpoints": [
         "https://github.com/tomnyson/edukids-screenshot/releases/latest/download/latest.json"
       ],
