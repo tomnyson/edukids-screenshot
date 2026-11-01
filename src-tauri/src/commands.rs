@@ -323,8 +323,11 @@ pub fn open_screen_recording_settings() -> Result<(), String> {
 
 // ── Overlay (region selector window) ─────────────────────────────────────────
 
+// MUST be async: creating a webview window inside a synchronous command
+// deadlocks the main thread on Windows (wry#583) — the overlay stayed at
+// about:blank and every later IPC call hung, freezing the whole app.
 #[tauri::command]
-pub fn start_region_capture(
+pub async fn start_region_capture(
     app: AppHandle,
     data_url: String,
     mode: Option<String>,

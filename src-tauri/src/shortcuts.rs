@@ -243,7 +243,7 @@ pub fn get_shortcut_settings(app: AppHandle) -> Vec<ShortcutInfo> {
 /// Set (Some) or reset to default (None) the shortcut of one action.
 /// Rolls back and returns an error if the new combination cannot be used.
 #[tauri::command]
-pub fn set_shortcut(
+pub async fn set_shortcut(
     app: AppHandle,
     event: String,
     accelerator: Option<String>,
@@ -308,11 +308,11 @@ pub fn set_shortcut(
 /// Temporarily release all global shortcuts (while the user is typing a new
 /// combination in the settings dialog, so it doesn't trigger a capture).
 #[tauri::command]
-pub fn suspend_shortcuts(app: AppHandle) -> Result<(), String> {
+pub async fn suspend_shortcuts(app: AppHandle) -> Result<(), String> {
     app.global_shortcut().unregister_all().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn resume_shortcuts(app: AppHandle) {
+pub async fn resume_shortcuts(app: AppHandle) {
     register_all(&app);
 }
